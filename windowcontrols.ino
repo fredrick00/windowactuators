@@ -11,6 +11,7 @@ public:
         unsigned long startTime;
         unsigned long remainingTime;
         unsigned long duration; // Duration for each actuator's motion
+
     } relayStates[MAX_PINS / 2];    // Array for relay states
 
     RelayControl(const int* pins, int numPins) : numPins(numPins) {
@@ -30,8 +31,9 @@ public:
             relayStates[i / 2].isExtending = false;
             relayStates[i / 2].isRetracting = false;
             relayStates[i / 2].startTime = 0;
-            relayStates[i / 2].remainingTime = 0;
+            relayStates[i / 2].remainingTime = totalDuration;
             relayStates[i / 2].duration = (i < 4) ? 11000 : 30000; // First two actuators 11 seconds, last two 30 seconds
+
         }
     }
 
@@ -45,7 +47,7 @@ public:
             activate(i, isExtend);
         }
     }
-
+    // action is true/1 for extend, false/0 for retract.  
     void activate(int index, bool action) {
         int pinIdx = action ? index * 2 : index * 2 + 1; // Select the correct pin based on action
         if (!relayStates[index].isActive) {
@@ -55,66 +57,75 @@ public:
             relayStates[index].isRetracting = !action;
             relayStates[index].startTime = millis();
 
-            if (action) { // If extending
-                if (relayStates[index].remainingTime == 0) {
-                    relayStates[index].remainingTime = relayStates[index].duration; // Set to full duration if never set
-                }
-            } else { // If retracting
-                relayStates[index].remainingTime = relayStates[index].duration - relayStates[index].remainingTime; // Adjust remaining time
+        if (action) { // If extending
+            if (relayStates[index].remainingTime == 0) {
+                relayStates[index].remainingTime = relayStates[index].duration; // Set to full duration if never set
             }
+        } else { // If retracting
+            relayStates[index].remainingTime = relayStates[index].duration - relayStates[index].remainingTime; // Adjust remaining time
         }
+      }
     }
 
     void pauseAll() {
         unsigned long currentTime = millis();
         for (int i = 0; i < numPins / 4; i++) {
             if (relayStates[i].isActive) {
-                unsigned long elapsed = currentTime - relayStates[i].startTime;
+                elapsed = currentTime - relayStates[i].startTime;
                 relayStates[i].remainingTime = max(relayStates[i].remainingTime - elapsed, 0UL);
                 if (relayStates[i].isRetracting) { // rectify remainingTime from retract to extend
-                    // Serial.print (relayStates[i].remainingTime);
-                    relayStates[i].remainingTime = relayStates[i].duration - relayStates[i].remainingTime;
-                    // Serial.print ("rectified to: ");
-                    // Serial.println (relayStates[i].remainingTime);
+                Serial.print (relayStates[i].remainingTime);
+                  relayStates[i].remainingTime = totalDuration - relayStates[i].remainingTime;
+                Serial.print ("rectified to: ");
+              Serial.println (relayStates[i].remainingTime);
                 }
             }
             digitalWrite(relayPins[2 * i], HIGH);
             digitalWrite(relayPins[2 * i + 1], HIGH);
             relayStates[i].isActive = false;
+  //          Serial.print ("Remainging Time: ");
+  //          Serial.println (i);
+  //          Serial.println (relayStates[i].remainingTime);
         }
     }
 
-    // New method to pause an individual actuator
-    void pauseSingleActuator(int actuatorIndex) {
-        unsigned long currentTime = millis();
-        if (relayStates[actuatorIndex].isActive) {
-            unsigned long elapsed = currentTime - relayStates[actuatorIndex].startTime;
-            relayStates[actuatorIndex].remainingTime = max(relayStates[actuatorIndex].remainingTime - elapsed, 0UL);
-            if (relayStates[actuatorIndex].isRetracting) { // rectify remainingTime from retracting to extending
-                relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
-            }
+
+  // New method to pause an individual actuator
+  void pauseSingleActuator(int actuatorIndex) {
+    unsigned long currentTime = millis();
+    if (relayStates[actuatorIndex].isActive) {
+        unsigned long elapsed = currentTime - relayStates[actuatorIndex].startTime;
+        relayStates[actuatorIndex].remainingTime = max(relayStates[actuatorIndex].remainingTime - elapsed, 0UL);
+        if (relayStates[actuatorIndex].isRetracting) { // rectify remainingTime from retracting to extending
+          relayStates[actuatorIndex].remainingTime = totalDuration - relayStates[actuatorIndex].remainingTime;
+
         }
-        digitalWrite(relayPins[actuatorIndex * 2], HIGH);
-        digitalWrite(relayPins[actuatorIndex * 2 + 1], HIGH);
-        relayStates[actuatorIndex].isActive = false;
-        relayStates[actuatorIndex].isExtending = false;
-        relayStates[actuatorIndex].isRetracting = false;
     }
+    digitalWrite(relayPins[actuatorIndex * 2], HIGH);
+    digitalWrite(relayPins[actuatorIndex * 2 + 1], HIGH);
+    relayStates[actuatorIndex].isActive = false;
+    relayStates[actuatorIndex].isExtending = false;
+    relayStates[actuatorIndex].isRetracting = false;
+
+    // No need to adjust remaining time here since activate will handle it
+  }
 
     // allow checking if a single actuator is active
     bool isActuatorActive(int actuatorIndex) {
         return relayStates[actuatorIndex].isActive;
     }
 
-    // method to control an individual actuator
-    void controlSingleActuator(int actuatorIndex, bool isExtend) {
-        int pinIdx = isExtend ? actuatorIndex * 2 : actuatorIndex * 2 + 1;
-        if (relayStates[actuatorIndex].isActive && ((isExtend && !relayStates[actuatorIndex].isExtending) || (!isExtend && !relayStates[actuatorIndex].isRetracting))) {
-            // The actuator is active but in the opposite state, so pause it first
-            pauseSingleActuator(actuatorIndex);
-        }
-        activate(actuatorIndex, isExtend); // Call activate with the index and action
+// method to control an individual actuator
+void controlSingleActuator(int actuatorIndex, bool isExtend) {
+    int pinIdx = isExtend ? actuatorIndex * 2 : actuatorIndex * 2 + 1;
+    if (relayStates[actuatorIndex].isActive && ((isExtend && !relayStates[actuatorIndex].isExtending) || (!isExtend && !relayStates[actuatorIndex].isRetracting))) {
+        // The actuator is active but in the opposite state, so pause it first
+        pauseSingleActuator(actuatorIndex);
     }
+    activate(actuatorIndex, isExtend); // Call activate with the index and action
+}
+
+
 
     bool anyActive() const {
         for (int i = 0; i < numPins / 4; i++) {
@@ -138,16 +149,18 @@ public:
 
 private:
     int numPins;
+    unsigned long elapsed;
     const unsigned long totalDuration = 5000; // Total duration in milliseconds
 };
 
-// Switch class to handle switch state changes
+
+
+
 class Switch {
 public:
-    Switch(int pin) : pin(pin), lastState(HIGH), currentState(HIGH), lastDebounceTime(0) {
+    Switch(int pin) : pin(pin), lastState(HIGH), lastDebounceTime(0) {
         pinMode(pin, INPUT_PULLUP);
         lastState = digitalRead(pin);  // Initialize lastState with the current state of the switch
-        currentState = lastState;
     }
 
     bool stateChanged() {
@@ -157,60 +170,10 @@ public:
             lastDebounceTime = millis();
         }
 
-        // Serial.print ("stateChanged: ");
-        // Serial.print (pin);
-        // Serial.print ("  -  ");
-        // Serial.print (reading);
-        // Serial.print (" / ");
-        // Serial.println (lastState); 
-        // delay (1000);
-
         if ((millis() - lastDebounceTime) > debounceDelay) {
             if (reading != currentState) {
                 currentState = reading;
-                return true;
-            }
-        }
-
-        lastState = reading;
-        return false;
-    }
-
-private:
-    int pin;
-    int lastState;
-    int currentState;
-    unsigned long lastDebounceTime;
-    static const long debounceDelay = 150;  // Debounce delay in milliseconds
-};
-
-// Button class to handle button state changes
-class Button {
-public:
-    Button(int pin) : pin(pin), lastState(HIGH), currentState(HIGH), lastDebounceTime(0) {
-        pinMode(pin, INPUT_PULLUP);
-        lastState = digitalRead(pin);  // Initialize lastState with the current state of the button
-        currentState = lastState;
-    }
-
-    bool stateChanged() {
-        int reading = digitalRead(pin);
-
-        if (reading != lastState) {
-            lastDebounceTime = millis();
-        }
-
-        // Serial.print ("button changed: (");
-        // Serial.print (pin);
-        // Serial.print (") ");
-        // Serial.print (lastState);
-        // Serial.print (" --> ");
-        // Serial.println (reading);
-        // delay(500);
-
-        if ((millis() - lastDebounceTime) > debounceDelay) {
-            if (reading != currentState) {
-                currentState = reading;
+                lastState = reading;
                 return true;
             }
         }
@@ -227,6 +190,56 @@ private:
     static const long debounceDelay = 50;  // Debounce delay in milliseconds
 };
 
+
+
+// Button class to handle button state changes
+class Button {
+public:
+    Button(int pin) : pin(pin), lastState(HIGH), currentState(HIGH), lastDebounceTime(0) {
+        pinMode(pin, INPUT_PULLUP);
+        lastState = digitalRead(pin);  // Initialize lastState with the current state of the button
+        currentState = lastState;  // Initialize currentState with the same value
+    }
+
+    bool stateChanged() {
+        int reading = digitalRead(pin);
+Serial.print ("reading: (");
+Serial.print (pin);
+Serial.print (") ");
+Serial.print (reading);
+Serial.print (" -- ");
+Serial.println (lastState);
+        if (reading != currentState) {
+            lastDebounceTime = millis();  // Reset the debouncing timer
+            currentState = reading;
+        }
+
+        if ((millis() - lastDebounceTime) > debounceDelay) {
+            // If the state has been stable for longer than the debounce delay, update lastState
+            if (currentState != lastState) {
+                lastState = currentState;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    int getState() const {
+        return currentState;
+    }
+
+private:
+    int pin;
+    int lastState;
+    int currentState;
+    unsigned long lastDebounceTime;
+    static const long debounceDelay = 50;  // Debounce delay in milliseconds
+};
+
+
+
+
 // LEDControl class to handle LED operations
 class LEDControl {
 public:
@@ -238,22 +251,25 @@ public:
     }
 
     void updateBlink(unsigned long currentMillis) {
-        if ((extendLedState && currentMillis - previousMillis >= 1000) || 
-            (!extendLedState && currentMillis - previousMillis >= 3000)) {
-            extendLedState = !extendLedState;
-            retractLedState = !retractLedState;
-            analogWrite(extendLedPin, extendLedState ? 28 : 0);  // Toggle between 50% and 0% brightness
-            analogWrite(retractLedPin, retractLedState ? 28 : 0);  // Toggle between 50% and 0% brightness
-            previousMillis = currentMillis;
+            if ((extendLedState && currentMillis - previousMillis >= 1000) || 
+                (!extendLedState && currentMillis - previousMillis >= 3000)) {
+                extendLedState = !extendLedState;
+                retractLedState = !retractLedState;
+                analogWrite(extendLedPin, extendLedState ? 222 : 255);  // Toggle between 50% and 0% brightness
+                analogWrite(retractLedPin, retractLedState ? 222 : 255);  // Toggle between 50% and 0% brightness
+                previousMillis = currentMillis;
+            } 
         }
-    }
 
     void setFullBrightness(bool on, bool isExtend) {
+
         if (on) {
             analogWrite(extendLedPin, isExtend ? 255 : 0); // Full brightness for extend LED
             analogWrite(retractLedPin, !isExtend ? 255 : 0); // Full brightness for retract LED
+
         } else {
             previousMillis = millis(); //  start the timing for blink/off cycle from here
+
             analogWrite(retractLedPin, 0);
             analogWrite(extendLedPin, 0);
         }
@@ -274,16 +290,16 @@ private:
     bool nightMode;
 };
 
+
 // Pin setup and object instantiation
-const int extendLedPin = 11; // Pin for the extend LED
-const int retractLedPin = 10; // Pin for the retract LED
-const int extendButtonPin = 12; // Pin number for the extend button
-const int retractButtonPin = 13; // Pin number for the retract button
+const int extendLedPin = 11; // 
+const int retractLedPin = 10; // 
+const int extendButtonPin = 12; // Example pin number for the extend button
+const int retractButtonPin = 13; // Example pin number for the retract button
 
 // Define the extend and retract pins for individual actuators
 const int extendPins[] = {8, 7, 5, 3};
 const int retractPins[] = {9, 6, 4, 2};
-
 
 // Instantiate the switches
 Switch extendSwitches[] = {
@@ -305,21 +321,31 @@ LEDControl leds(extendLedPin, retractLedPin); // Create an instance of LEDContro
 Button extendButton(extendButtonPin);  // Creating an instance of Button for extend
 Button retractButton(retractButtonPin);  // Creating an instance of Button for retract
 
-const int relayPins[] = {51, 49, 47, 45, 43, 41, 39, 37};  // Actuator relay pinout with extend being first half and retract second half
+const int relayPins[] = {51, 49, 47, 45, 43, 41, 39, 37};  // actuator relay pinout with extend being first half and retract second half
 RelayControl relays(relayPins, sizeof(relayPins) / sizeof(relayPins[0]));  // Creating an instance of RelayControl
+
 
 void setup() {
     // Setup code here, if needed
     Serial.begin(9600);  // Start serial communication at 9600 baud
+    pinMode(extendButtonPin, INPUT_PULLUP);
+    pinMode(retractButtonPin, INPUT_PULLUP);
+    pinMode(extendLedPin, OUTPUT);
+    pinMode(retractLedPin, OUTPUT);
+
     relays.initializeRelays(); // Initialize all relays to off
+
 }
 
 void loop() {
     int simulatedHour = (millis() / 200) % 24;  // Simulate time for demonstration
-
+    Serial.print ("extendButton: ");
+    Serial.println (extendButton.getState());
     if (extendButton.stateChanged()) {
-      // Serial.print ("extend button: ");
-      // Serial.println (relays.anyActive());
+      Serial.print ("extend button: ");
+      Serial.println(extendButton.getState());
+
+ //     Serial.println (relays.anyActive());
       if (relays.anyActive()) {
         relays.pauseAll();
         leds.setFullBrightness(false, false);
@@ -328,17 +354,19 @@ void loop() {
         leds.setFullBrightness(true, true);
       }
     } else if (retractButton.stateChanged()) {
-        // Serial.print ("retract button: ");
-        // Serial.println (relays.anyActive());
-        if (relays.anyActive()) {
+            Serial.print ("retract button: ");
+           Serial.println(retractButton.getState());
+
+
+      if (relays.anyActive()) {
         relays.pauseAll();
         leds.setFullBrightness(false, false);
       } else {
-        // Serial.println("State changed to retract");
+ //       Serial.println("State changed to retract");
         relays.controlRelays(false);  // Retract relays
         leds.setFullBrightness(true, false);
       }
-    }
+    } 
 
     // Handle extend and retract switches
     for (int i = 0; i < 4; i++) {
@@ -349,6 +377,7 @@ void loop() {
                 } else {
                     relays.controlSingleActuator(i, true);  // Extend actuator
                     leds.setFullBrightness(true, true);
+
                 }
             }
         }
@@ -358,19 +387,20 @@ void loop() {
                     relays.pauseSingleActuator(i);  // Pause if already active
                 } else {
                     relays.controlSingleActuator(i, false);  // Retract actuator
-                    leds.setFullBrightness(true, false);
+                   leds.setFullBrightness(true, false);
                 }
             }
         }
     } // end individual switches logic
 
-    if (!relays.anyActive()) {
+     if (!relays.anyActive()) {
         leds.updateBlink(millis());
-    }
-
+      }
+    
     bool wasActive = relays.anyActive();
     relays.update();  // Update relay states
     if (wasActive != relays.anyActive()) {
       leds.setFullBrightness(false, false);
     }
+    
 }
