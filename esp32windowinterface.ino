@@ -122,7 +122,7 @@ void WebServerManager::handleClient() {
   server.handleClient(); // Handle web server requests
 }
 
-const char htmlPage[] PROGMEM = R"rawliteral(
+const char htmlPage[]  = R"rawliteral(
 <!DOCTYPE HTML>
 <html>
 <head>
