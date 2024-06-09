@@ -190,7 +190,9 @@ private:
                 status += String(i + 1) + (relayStates[i].isExtending ? "E" : "R") + " ";
             }
         }
+        Serial1.println(status);
         Serial.println(status);
+
     }
 };
 
