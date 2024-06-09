@@ -97,6 +97,8 @@ public:
             } else { // If retracting
                 relayStates[index].remainingTime = relayStates[index].duration - relayStates[index].remainingTime; // Adjust remaining time
             }
+            sendStatus(); // Send status to ESP32 whenever there is a state change
+
         }
     }
 
@@ -116,6 +118,8 @@ public:
             digitalWrite(relayPins[2 * i], HIGH);
             digitalWrite(relayPins[2 * i + 1], HIGH);
             relayStates[i].isActive = false;
+            sendStatus(); // Send status to ESP32 whenever there is a state change
+
         }
     }
 
@@ -128,6 +132,8 @@ public:
             if (relayStates[actuatorIndex].isRetracting) { // rectify remainingTime from retracting to extending
                 relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
             }
+            sendStatus(); // Send status to ESP32 whenever there is a state change
+
         }
         digitalWrite(relayPins[actuatorIndex * 2], HIGH);
         digitalWrite(relayPins[actuatorIndex * 2 + 1], HIGH);
@@ -167,6 +173,8 @@ public:
                 relayStates[i].isExtending = false;
                 relayStates[i].isRetracting = false;
                 relayStates[i].remainingTime = 0;  // Reset remaining time after completion
+                sendStatus(); // Send status to ESP32 whenever there is a state change
+
             }
         }
     }
@@ -174,6 +182,16 @@ public:
 private:
     int numPins;
     const unsigned long totalDuration = 5000; // Total duration in milliseconds
+
+    void sendStatus() {
+        String status = "STATUS ";
+        for (int i = 0; i < numPins / 4; i++) {
+            if (relayStates[i].isActive) {
+                status += String(i + 1) + (relayStates[i].isExtending ? "E" : "R") + " ";
+            }
+        }
+        Serial.println(status);
+    }
 };
 
 // Switch class to handle switch state changes
