@@ -1,5 +1,40 @@
 #include <Arduino.h>
 
+
+class Command {
+public:
+  Command(const String& rawCommand) {
+    parseCommand(rawCommand);
+  }
+
+  const String& getAction() const {
+    return action;
+  }
+
+  int getActuator() const {
+    return actuator;
+  }
+
+private:
+  String action;
+  int actuator;
+
+  void parseCommand(const String& rawCommand) {
+    int spaceIndex = rawCommand.indexOf(' ');
+    if (spaceIndex > 0) {
+      action = rawCommand.substring(0, spaceIndex);
+      String actuatorStr = rawCommand.substring(spaceIndex + 1);
+      if (actuatorStr == "ALL") {
+        actuator = 0;
+      } else {
+        actuator = actuatorStr.toInt();
+      }
+    }
+  }
+};
+
+
+
 class RelayControl {
 public:
     static const int MAX_PINS = 8;  // Maximum number of relays controlled
@@ -274,6 +309,35 @@ private:
     bool nightMode;
 };
 
+class ActuatorController {
+public:
+  ActuatorController(RelayControl& relayControl, LEDControl& ledControl)
+    : relays(relayControl), leds(ledControl) {}
+
+  void executeCommand(const Command& command) {
+    if (command.getAction() == "EXTEND") {
+      if (command.getActuator() == 0) {
+        relays.controlRelays(true);
+      } else {
+        relays.controlSingleActuator(command.getActuator() - 1, true);
+      }
+      leds.setFullBrightness(true, true);
+    } else if (command.getAction() == "RETRACT") {
+      if (command.getActuator() == 0) {
+        relays.controlRelays(false);
+      } else {
+        relays.controlSingleActuator(command.getActuator() - 1, false);
+      }
+      leds.setFullBrightness(true, false);
+    }
+  }
+
+private:
+  RelayControl& relays;
+  LEDControl& leds;
+};
+
+
 // Pin setup and object instantiation
 const int extendLedPin = 11; // Pin for the extend LED
 const int retractLedPin = 10; // Pin for the retract LED
@@ -307,13 +371,24 @@ Button retractButton(retractButtonPin);  // Creating an instance of Button for r
 
 const int relayPins[] = {51, 49, 47, 45, 43, 41, 39, 37};  // Actuator relay pinout with extend being first half and retract second half
 RelayControl relays(relayPins, sizeof(relayPins) / sizeof(relayPins[0]));  // Creating an instance of RelayControl
+ActuatorController actuatorController(relays, leds);  // Creating an instance of ActuatorController
 
+
+/** 
+     Setup
+**/
 void setup() {
     // Setup code here, if needed
     Serial.begin(9600);  // Start serial communication at 9600 baud
     relays.initializeRelays(); // Initialize all relays to off
+    Serial1.begin(115200);   // Serial communication with ESP-32
+    pinMode(LED_BUILTIN, OUTPUT);  // Optional: Use built-in LED for testing
+
 }
 
+/**
+    Loop
+**/
 void loop() {
     int simulatedHour = (millis() / 200) % 24;  // Simulate time for demonstration
 
@@ -339,6 +414,17 @@ void loop() {
         leds.setFullBrightness(true, false);
       }
     }
+
+    // Read commands from Serial1 (from ESP32) and execute them
+    if (Serial1.available()) {
+        String commandStr = Serial1.readStringUntil('\n');
+        commandStr.trim(); // Remove any extraneous whitespace or newline characters
+        if (commandStr.length() > 0) {
+            Command command(commandStr);
+            actuatorController.executeCommand(command);
+        }
+    }
+
 
     // Handle extend and retract switches
     for (int i = 0; i < 4; i++) {
