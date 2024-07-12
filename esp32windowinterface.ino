@@ -107,16 +107,7 @@ WiFiManager wifiManager;
 // BluetoothManager btManager;
 WebServerManager webServerManager;
 
-void setup() {
-  Serial.begin(115200);      // Serial communication with the computer
-  Serial2.begin(115200, SERIAL_8N1, 27, 28); // Serial communication with Arduino Mega (RX2, TX2)
 
-  pinMode(LED_BUILTIN, OUTPUT);  // Optional: Use built-in LED for testing
-
-//  btManager.begin();
-  wifiManager.connectToWiFi();
-  webServerManager.begin();
-}
 
 void WiFiManager::connectToWiFi() {
   Serial.println("Attempting to connect to WiFi...");
@@ -179,7 +170,8 @@ void WebServerManager::handleToggle() {
     } else { // Individual actuator
       command = action + " " + String(actuator);
     }
-
+    Serial.print ("Executing command: ");
+    Serial.println (command);
     Serial2.println(command);
     server.send(200, "text/plain", "Command sent: " + command);
   } else {
@@ -219,93 +211,122 @@ void WebServerManager::handleNetworkInfo() {
 
 String WebServerManager::generateHTML() {
   String html = R"rawliteral(
-    <!DOCTYPE HTML>
-    <html>
-    <head>
-      <title>ESP32 Actuator Control</title>
-      <style>
-        .button {
-          padding: 15px 25px;
-          font-size: 24px;
-          margin: 5px;
-          border: none;
-          color: white;
-        }
-        .extend-inactive { background-color: blue; }
-        .extend-extending { background-color: green; }
-        .extend-retracting { background-color: red; }
-        .retract-inactive { background-color: blue; }
-        .retract-extending { background-color: green; }
-        .retract-retracting { background-color: red; }
-      </style>
-    </head>
-    <body>
-      <h1>ESP32 Actuator Control</h1>
-  )rawliteral";
-
-  for (int i = 0; i < 4; i++) {
-    String extendClass = "extend-inactive";
-    String retractClass = "retract-inactive";
-
-    if (actuatorStatus[i] == EXTENDING) {
-      extendClass = "extend-extending";
-    } else if (actuatorStatus[i] == RETRACTING) {
-      retractClass = "retract-retracting";
-    } else if (actuatorStatus[i] == INACTIVE) {
-      if (extendClass == "extend-extending") {
-        extendClass = "extend-inactive";
-      } else if (retractClass == "retract-retracting") {
-        retractClass = "retract-inactive";
-      }
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>ESP32 Actuator Control - No Scripts</title>
+  <style>
+    .button {
+      padding: 15px 25px;
+      font-size: 24px;
+      margin: 5px;
+      border: none;
+      color: white;
+      background-color: blue;
+      cursor: pointer;
+      display: inline-block; /* Ensure buttons are inline-block */
     }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Actuator Control - No Scripts</h1>
 
-    html += "<button type='button' class='button " + extendClass + "' onclick=\"sendCommand('EXTEND', " + String(i + 1) + ")\" id='extend" + String(i + 1) + "'>Extend Actuator " + String(i + 1) + "</button>";
-    html += "<button type='button' class='button " + retractClass + "' onclick=\"sendCommand('RETRACT', " + String(i + 1) + ")\" id='retract" + String(i + 1) + "'>Retract Actuator " + String(i + 1) + "</button><br>";
-  }
+  <!-- Extend Actuator 1 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="EXTEND">
+    <input type="hidden" name="actuator" value="1">
+    <button type="submit" class="button">Extend Actuator 1</button>
+  </form>
 
-  html += R"rawliteral(
-      <button type='button' class="button extend-inactive" onclick="sendCommand('EXTEND', 0)">Extend All Actuators</button>
-      <button type='button' class="button retract-inactive" onclick="sendCommand('RETRACT', 0)">Retract All Actuators</button>
-      <script>
-        function sendCommand(action, actuator) {
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", "/toggle?action=" + action + "&actuator=" + actuator, true);
-          xhr.send();
-        }
+  <!-- Retract Actuator 1 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="RETRACT">
+    <input type="hidden" name="actuator" value="1">
+    <button type="submit" class="button">Retract Actuator 1</button>
+  </form>
 
-        function updateStatus() {
-          var xhr = new XMLHttpRequest();
-          xhr.open("GET", "/status", true);
-          xhr.onreadystatechange = function() {
-            if (xhr.readyState == 4 && xhr.status == 200) {
-              var response = JSON.parse(xhr.responseText);
-              for (var i = 0; i < 4; i++) {
-                var extendElement = document.getElementById('extend' + (i + 1));
-                var retractElement = document.getElementById('retract' + (i + 1));
-                if (response.states[i] == 'EXTENDING') {
-                  extendElement.className = 'button extend-extending';
-                  retractElement.className = 'button retract-inactive';
-                } else if (response.states[i] == 'RETRACTING') {
-                  retractElement.className = 'button retract-retracting';
-                  extendElement.className = 'button extend-inactive';
-                } else {
-                  extendElement.className = 'button extend-inactive';
-                  retractElement.className = 'button retract-inactive';
-                }
-              }
-            }
-          };
-          xhr.send();
-        }
-        setInterval(updateStatus, 1000); // Update status every second
-      </script>
-    </body>
-    </html>
+  <!-- Extend Actuator 2 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="EXTEND">
+    <input type="hidden" name="actuator" value="2">
+    <button type="submit" class="button">Extend Actuator 2</button>
+  </form>
+
+  <!-- Retract Actuator 2 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="RETRACT">
+    <input type="hidden" name="actuator" value="2">
+    <button type="submit" class="button">Retract Actuator 2</button>
+  </form>
+
+  <!-- Extend Actuator 3 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="EXTEND">
+    <input type="hidden" name="actuator" value="3">
+    <button type="submit" class="button">Extend Actuator 3</button>
+  </form>
+
+  <!-- Retract Actuator 3 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="RETRACT">
+    <input type="hidden" name="actuator" value="3">
+    <button type="submit" class="button">Retract Actuator 3</button>
+  </form>
+
+  <!-- Extend Actuator 4 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="EXTEND">
+    <input type="hidden" name="actuator" value="4">
+    <button type="submit" class="button">Extend Actuator 4</button>
+  </form>
+
+  <!-- Retract Actuator 4 -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="RETRACT">
+    <input type="hidden" name="actuator" value="4">
+    <button type="submit" class="button">Retract Actuator 4</button>
+  </form>
+
+  <!-- Extend All Actuators -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="EXTEND">
+    <input type="hidden" name="actuator" value="0">
+    <button type="submit" class="button">Extend All Actuators</button>
+  </form>
+
+  <!-- Retract All Actuators -->
+  <form method="GET" action="/toggle">
+    <input type="hidden" name="action" value="RETRACT">
+    <input type="hidden" name="actuator" value="0">
+    <button type="submit" class="button">Retract All Actuators</button>
+  </form>
+
+</body>
+</html>
+
   )rawliteral";
 
   return html;
 }
 
+void setup() {
+  Serial.begin(115200);      // Serial communication with the computer
+  Serial2.begin(115200, SERIAL_8N1, 27, 28); // Serial communication with Arduino Mega (RX2, TX2)
+
+  pinMode(LED_BUILTIN, OUTPUT);  // Optional: Use built-in LED for testing
+
+//  btManager.begin();
+  wifiManager.connectToWiFi();
+  webServerManager.begin();
+
+  /** Make it clear the esp32 was just started. **/
+  Serial.println ("\n\n/**\n/**  ESP32 Started\n/**\n");
+  /** Send a communication to Mega board so it knows we just started **/
+  Serial2.println ("ESP32 Booted and Connected.");
+}
+
+
+/** Begin actual executable code **/
 void loop() {
  // btManager.handleBluetooth();
   wifiManager.handleWiFi();
@@ -347,6 +368,8 @@ void loop() {
         }
       }
     }
+  } else {
+    Serial.println ("Error: Serial2 (Mega) not available.");
   }
 }
 
