@@ -1,4 +1,6 @@
 #ifdef ESP32
+#define RX_PIN 17
+#define TX_PIN 16
 
 #include <WiFi.h>
 //#include <BluetoothSerial.h>
@@ -123,6 +125,9 @@ void WiFiManager::connectToWiFi() {
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("Connected to WiFi");
+        // Print the IP address
+    Serial.print("ESP32 IP Address: ");
+    Serial.println(WiFi.localIP());
     // Announce service to mDNS
     if (!MDNS.begin("esp32")) { // Set the hostname to "esp32"
       Serial.println("Error setting up MDNS responder!");
@@ -311,7 +316,7 @@ String WebServerManager::generateHTML() {
 
 void setup() {
   Serial.begin(115200);      // Serial communication with the computer
-  Serial2.begin(115200, SERIAL_8N1, 27, 28); // Serial communication with Arduino Mega (RX2, TX2)
+  Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN); // Serial communication with Arduino Mega (RX, TX)
 
   pinMode(LED_BUILTIN, OUTPUT);  // Optional: Use built-in LED for testing
 
@@ -368,9 +373,8 @@ void loop() {
         }
       }
     }
-  } else {
-    Serial.println ("Error: Serial2 (Mega) not available.");
-  }
+  } 
+  
 }
 
 #endif
