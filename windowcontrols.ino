@@ -24,32 +24,37 @@ public:
         initializeRelays();
     }
 
-    void controlSingleActuator(int actuatorIndex, bool isExtend) {
-        int pinIdx = isExtend ? actuatorIndex * 2 : actuatorIndex * 2 + 1;
-        if (relayStates[actuatorIndex].isActive && ((isExtend && !relayStates[actuatorIndex].isExtending) || (!isExtend && !relayStates[actuatorIndex].isRetracting))) {
-            // The actuator is active but in the opposite state, so pause it first
-            pauseSingleActuator(actuatorIndex);
+void controlSingleActuator(int actuatorIndex, bool isExtend) {
+    if (relayStates[actuatorIndex].isActive) {
+        // The actuator is active, so pause it first
+        pauseSingleActuator(actuatorIndex);
+    } else {
+        // Activate the actuator for the desired action (extend or retract)
+        activate(actuatorIndex, isExtend);
+    }
+}
+
+void pauseSingleActuator(int actuatorIndex) {
+    unsigned long currentTime = millis();
+    int totalActuators = numPins / 2;
+
+    if (relayStates[actuatorIndex].isActive) {
+        Serial.print("Pausing Actuator: ");
+        Serial.println(actuatorIndex);
+        unsigned long elapsed = currentTime - relayStates[actuatorIndex].startTime;
+        relayStates[actuatorIndex].remainingTime = max(relayStates[actuatorIndex].remainingTime - elapsed, 0UL);
+        if (relayStates[actuatorIndex].isRetracting) {  // Rectify remainingTime from retracting to extending
+            relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
         }
-        activate(actuatorIndex, isExtend); // Call activate with the index and action
+
+        int pinIndex = relayStates[actuatorIndex].isExtending ? actuatorIndex : actuatorIndex + totalActuators;
+        digitalWrite(relayPins[pinIndex], HIGH);  // Deactivate the relay
     }
 
-    void pauseSingleActuator(int actuatorIndex) {
-        unsigned long currentTime = millis();
-        if (relayStates[actuatorIndex].isActive) {
-            Serial.print ("Pausing Actuator: ");
-            Serial.println (actuatorIndex);
-            unsigned long elapsed = currentTime - relayStates[actuatorIndex].startTime;
-            relayStates[actuatorIndex].remainingTime = max(relayStates[actuatorIndex].remainingTime - elapsed, 0UL);
-            if (relayStates[actuatorIndex].isRetracting) { // rectify remainingTime from retracting to extending
-                relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
-            }
-        }
-        digitalWrite(relayPins[actuatorIndex * 2], HIGH);
-        digitalWrite(relayPins[actuatorIndex * 2 + 1], HIGH);
-        relayStates[actuatorIndex].isActive = false;
-        relayStates[actuatorIndex].isExtending = false;
-        relayStates[actuatorIndex].isRetracting = false;
-    }
+    relayStates[actuatorIndex].isActive = false;
+    relayStates[actuatorIndex].isExtending = false;
+    relayStates[actuatorIndex].isRetracting = false;
+}
 
 
     void initializeRelays() {
@@ -66,22 +71,24 @@ public:
     }
 
     void controlRelays(bool isExtend) {
+      int totalActuators = numPins / 2;
+
       if (anyActive()) {
         pauseAll ();
       } else {
         if (isExtend) { 
             if (!areAnyRetracting()) { // Ensure not currently retracting
-                for (int i = 0; i < numPins / 2; i++) {
+                for (int i = 0; i < totalActuators; i++) {
                     activate(i, true);
                 }
             }
         } else {
             if (!areAnyExtending()) { // Ensure not currently extending
-            Serial.println ("Evaluated that we eare extending.");
+            Serial.println ("Evaluated that we are extending.");
               if (pausedRemainingTime > 0) {
                 pausedRemainingTime = totalDuration - pausedRemainingTime; // rectify from extend to retract
               }
-                for (int i = numPins / 2; i < numPins; i++) {
+                for (int i = 0; i < totalActuators; i++) {
                     activate(i, false);
                 }
             }
@@ -89,21 +96,25 @@ public:
       }
     }
 
-    void activate(int index, bool action) {
-        Serial.print ("Activating actuator.  (Index/Action): ");
-        Serial.print (index);
-        Serial.print ("/");
-        Serial.println (action);
+void activate(int actuatorIndex, bool isExtend) {
+    Serial.print("Activating actuator. (Index/Action): ");
+    Serial.print(actuatorIndex);
+    Serial.print("/");
+    Serial.println(isExtend);
 
-        if (index < numPins && !relayStates[index].isActive) {
-            digitalWrite(relayPins[index], LOW); // Activate the relay
-            relayStates[index].isActive = true;
-            relayStates[index].isExtending = action;
-            relayStates[index].isRetracting = !action;
-            relayStates[index].startTime = millis();
-            relayStates[index].remainingTime = pausedRemainingTime ? pausedRemainingTime : totalDuration;
-        }
+    int totalActuators = numPins / 2;  // Calculate the total number of actuators
+    int pinIndex = isExtend ? actuatorIndex : actuatorIndex + totalActuators;
+
+    if (!relayStates[actuatorIndex].isActive) {
+        digitalWrite(relayPins[pinIndex], LOW);  // Activate the relay
+        relayStates[actuatorIndex].isActive = true;
+        relayStates[actuatorIndex].isExtending = isExtend;
+        relayStates[actuatorIndex].isRetracting = !isExtend;
+        relayStates[actuatorIndex].startTime = millis();
+        relayStates[actuatorIndex].remainingTime = pausedRemainingTime ? pausedRemainingTime : totalDuration;
     }
+}
+
 
     void pauseAll() {
         pausedRemainingTime = 0;
@@ -151,17 +162,25 @@ public:
         return false;
     }
 
-    void update() {
-        currentMillis = millis();
-        for (int i = 0; i < numPins; i++) {
-            if (relayStates[i].isActive && (currentMillis - relayStates[i].startTime >= relayStates[i].remainingTime)) {
-                digitalWrite(relayPins[i], HIGH);
-                relayStates[i].isActive = false;
-                relayStates[i].isExtending = false;
-                relayStates[i].isRetracting = false;
-            }
+void update() {
+    unsigned long currentMillis = millis();
+    int totalActuators = numPins / 2;
+
+    for (int i = 0; i < totalActuators; i++) {
+        if (relayStates[i].isActive && (currentMillis - relayStates[i].startTime >= relayStates[i].remainingTime)) {
+            int pinIndex = relayStates[i].isExtending ? i : i + totalActuators;
+            digitalWrite(relayPins[pinIndex], HIGH);  // Stop the actuator
+            relayStates[i].isActive = false;
+            relayStates[i].isExtending = false;
+            relayStates[i].isRetracting = false;
+
+            Serial.print("Actuator ");
+            Serial.print(i);
+            Serial.println(" stopped.");
         }
     }
+}
+
 
 private:
     int numPins;
@@ -330,12 +349,12 @@ MegaActuatorController actuatorController(relays, leds);
 
 void setup() {
     // Setup code here, if needed
-    Serial.begin(9600);  // Start serial communication at 9600 baud
-    Serial1.begin(115200);   // Serial communication with ESP-32
-   // Serial1 uses RX1 (Pin 19) and TX1 (Pin 18) on Arduino Mega 2560
+    Serial.begin(115200);  // Start serial communication at 9600 baud
+    Serial2.begin(115200);   // Serial communication with ESP-32
+   // Serial2 uses RX (Pin 17) and TX (Pin 16) on Arduino Mega 2560
     relays.initializeRelays(); // Initialize all relays to off
     // create a clear beginning of program execution
-    Serial.println ("\n\n/**\n/**\n/**  Windows script restarted on Mega board.\n/**\n/**\n");
+    Serial.println ("\n\n/**\n/**\n/**  Windows contorller script restarted on Mega board.\n/**\n/**\n");
 }
 
 void loop() {
@@ -378,9 +397,9 @@ void loop() {
     relays.update();  // Update relay states
 
     // Read commands from Serial1 (from ESP32) and execute them
-    if (Serial1.available()) {
-        String commandStr = Serial1.readStringUntil('\n');
-        Serial.print ("Serial1 available.  String content: ");
+    if (Serial2.available()) {
+        String commandStr = Serial2.readStringUntil('\n');
+        Serial.print ("Serial2 available.  String content: ");
         Serial.print (commandStr);
         commandStr.trim(); // Remove any extraneous whitespace or newline characters
         if (commandStr.length() > 0) {
@@ -390,7 +409,8 @@ void loop() {
             actuatorController.executeCommand(command);
         }
     } else {
-      Serial.println ("Error: Serial1 (ESP32) not available.");
+//      Serial.println ("Error: Serial1 (ESP32) not available.");
+//      delay (2000);
     }
 }
 
