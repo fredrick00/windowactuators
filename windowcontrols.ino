@@ -2,10 +2,12 @@
 
 #include <Arduino.h>
 
+
 class MegaRelayControl {
 public:
     static const int MAX_PINS = 8; // Define the maximum number of relays you can control
     int relayPins[MAX_PINS]; // Static array to hold relay pins
+
     struct RelayState {
         bool isActive;
         bool isExtending;
@@ -18,11 +20,16 @@ public:
 
     MegaRelayControl
   (const int* pins, int numPins) : numPins(numPins) {
+        totalActuators = numPins / 2; // Calculate total actuators based on numPins
         for (int i = 0; i < numPins; i++) {
             relayPins[i] = pins[i];
         }
         initializeRelays();
     }
+
+int getTotalActuators() const {
+        return totalActuators;
+}
 
 void controlSingleActuator(int actuatorIndex, bool isExtend) {
     if (relayStates[actuatorIndex].isActive) {
@@ -36,7 +43,6 @@ void controlSingleActuator(int actuatorIndex, bool isExtend) {
 
 void pauseSingleActuator(int actuatorIndex) {
     unsigned long currentTime = millis();
-    int totalActuators = numPins / 2;
 
     if (relayStates[actuatorIndex].isActive) {
         Serial.print("Pausing Actuator: ");
@@ -47,7 +53,7 @@ void pauseSingleActuator(int actuatorIndex) {
             relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
         }
 
-        int pinIndex = relayStates[actuatorIndex].isExtending ? actuatorIndex : actuatorIndex + totalActuators;
+        int pinIndex = relayStates[actuatorIndex].isExtending ? actuatorIndex : actuatorIndex + getTotalActuators();
         digitalWrite(relayPins[pinIndex], HIGH);  // Deactivate the relay
     }
 
@@ -71,14 +77,13 @@ void pauseSingleActuator(int actuatorIndex) {
     }
 
     void controlRelays(bool isExtend) {
-      int totalActuators = numPins / 2;
 
       if (anyActive()) {
         pauseAll ();
       } else {
         if (isExtend) { 
             if (!areAnyRetracting()) { // Ensure not currently retracting
-                for (int i = 0; i < totalActuators; i++) {
+                for (int i = 0; i < getTotalActuators(); i++) {
                     activate(i, true);
                 }
             }
@@ -88,7 +93,7 @@ void pauseSingleActuator(int actuatorIndex) {
               if (pausedRemainingTime > 0) {
                 pausedRemainingTime = totalDuration - pausedRemainingTime; // rectify from extend to retract
               }
-                for (int i = 0; i < totalActuators; i++) {
+                for (int i = 0; i < getTotalActuators(); i++) {
                     activate(i, false);
                 }
             }
@@ -102,8 +107,7 @@ void activate(int actuatorIndex, bool isExtend) {
     Serial.print("/");
     Serial.println(isExtend);
 
-    int totalActuators = numPins / 2;  // Calculate the total number of actuators
-    int pinIndex = isExtend ? actuatorIndex : actuatorIndex + totalActuators;
+    int pinIndex = isExtend ? actuatorIndex : actuatorIndex + getTotalActuators();
 
     if (!relayStates[actuatorIndex].isActive) {
         digitalWrite(relayPins[pinIndex], LOW);  // Activate the relay
@@ -164,11 +168,17 @@ void activate(int actuatorIndex, bool isExtend) {
 
 void update() {
     unsigned long currentMillis = millis();
-    int totalActuators = numPins / 2;
 
-    for (int i = 0; i < totalActuators; i++) {
-        if (relayStates[i].isActive && (currentMillis - relayStates[i].startTime >= relayStates[i].remainingTime)) {
-            int pinIndex = relayStates[i].isExtending ? i : i + totalActuators;
+    for (int i = 0; i < getTotalActuators(); i++) {
+        if (relayStates[i].isActive) {
+            // Calculate elapsed time
+            unsigned long elapsedTime = currentMillis - relayStates[i].startTime;
+
+
+            // Check if the relay should be turned off
+            if (elapsedTime >= relayStates[i].remainingTime) {
+                int pinIndex = relayStates[i].isExtending ? i : i + getTotalActuators();
+
             digitalWrite(relayPins[pinIndex], HIGH);  // Stop the actuator
             relayStates[i].isActive = false;
             relayStates[i].isExtending = false;
@@ -177,6 +187,7 @@ void update() {
             Serial.print("Actuator ");
             Serial.print(i);
             Serial.println(" stopped.");
+          }
         }
     }
 }
@@ -186,6 +197,8 @@ private:
     int numPins;
     bool activateRelay;
     long pausedRemainingTime = 0;
+    int totalActuators; // Encapsulated as a private member
+
     unsigned long currentMillis = millis();
     const unsigned long totalDuration = 5000; // Total duration in milliseconds
 };
@@ -329,11 +342,78 @@ private:
   MegaLEDControl& leds;
 };
 
+// Define a class to handle switch interactions
+class Switch {
+public:
+    Switch() : pin(-1), state(false), lastState(false), lastDebounceTime(0), debounceDelay(50) {} 
+
+    Switch(int pin) : pin(pin), state(false), lastState(false), lastDebounceTime(0), debounceDelay(50) {
+        pinMode(pin, INPUT_PULLUP);
+    }
+
+    // Copy constructor
+    Switch(const Switch& other) : pin(other.pin), state(other.state), lastState(other.lastState),
+                                  lastDebounceTime(other.lastDebounceTime), debounceDelay(other.debounceDelay) {}
+
+    // Copy assignment operator
+    Switch& operator=(const Switch& other) {
+        if (this != &other) {
+            pin = other.pin;
+            state = other.state;
+            lastState = other.lastState;
+            lastDebounceTime = other.lastDebounceTime;
+            // debounceDelay doesn't change after construction, no need to copy it
+        }
+        return *this;
+    }
+
+    bool isPressed() {
+        return digitalRead(pin) == LOW;
+    }
+
+    bool hasStateChanged() {
+        bool currentState = isPressed();
+        if (currentState != lastState) {
+            lastDebounceTime = millis(); 
+        }
+
+        if ((millis() - lastDebounceTime) > debounceDelay) {
+            if (currentState != state) {
+                state = currentState;
+                lastState = currentState;
+                return true;
+            }
+        }
+
+        lastState = currentState;
+        return false;
+    }
+
+    bool getState() const {
+        return state;
+    }
+
+private:
+    int pin;
+    bool state;
+    bool lastState;
+    unsigned long lastDebounceTime;
+    const unsigned long debounceDelay;
+};
+
+
+
 
 // Pin setup and object instantiation
 const int extendLedPin = 11; // 
 const int retractLedPin = 10; // 
 MegaLEDControl leds(extendLedPin, retractLedPin); // Create an instance of MegaLEDControl
+
+const int switchPins[] = {8, 9, 7, 6, 5, 4, 3, 2}; // Define the pins for the 4 momentary switches
+const int switchCount = sizeof(switchPins) / sizeof(switchPins[0]);
+bool switchStates[] = {false, false, false, false}; // Store the state of each switch
+// Declare an array of Switch objects
+Switch switches[switchCount]; // Declare the array first
 
 const int extendButtonPin = 12; // Example pin number for the extend button
 const int retractButtonPin = 13; // Example pin number for the retract button
@@ -354,11 +434,23 @@ void setup() {
    // Serial2 uses RX (Pin 17) and TX (Pin 16) on Arduino Mega 2560
     relays.initializeRelays(); // Initialize all relays to off
     // create a clear beginning of program execution
+        // Initialize switch pins
+    // Initialize each switch with its corresponding pin
+    for (int i = 0; i < switchCount; i++) {
+      switches[i] = Switch(switchPins[i]);
+    }
+ //   switches[1] = Switch(9);
+ //   switches[2] = Switch(7);
+//    switches[3] = Switch(6);  
     Serial.println ("\n\n/**\n/**\n/**  Windows contorller script restarted on Mega board.\n/**\n/**\n");
 }
 
 void loop() {
     int simulatedHour = (millis() / 200) % 24;  // Simulate time for demonstration
+
+
+
+
 
     if (extendButton.stateChanged()) {
         Serial.println("\nState changed to extend");
@@ -394,7 +486,46 @@ void loop() {
         }
     }
 
-    relays.update();  // Update relay states
+    // Check each switch and control the corresponding actuator
+for (int i = 0; i < switchCount; ++i) {
+    int pin = switchPins[i];  // Get the pin associated with the current switch
+    bool currentState = switches[i].getState();  // Get the current state of the switch
+    
+    if (switches[i].hasStateChanged()) {
+        Serial.print("Switch on pin ");
+        Serial.print(pin);
+        Serial.print(" (index ");
+        Serial.print(i);
+        Serial.print(") state changed to ");
+        Serial.println(currentState ? "ON" : "OFF");
+
+        // Example: Control actuators based on switch state
+        if (currentState) {
+            // Activate the corresponding actuator
+            Serial.print("Activating actuator for switch on pin ");
+            Serial.println(pin);
+            relays.controlSingleActuator(i, true); // Assume true for extend
+        } else {
+            // Pause or deactivate the corresponding actuator
+            Serial.print("Pausing actuator for switch on pin ");
+            Serial.println(pin);
+            relays.pauseSingleActuator(i);
+        }
+    }
+ /*   
+    // Print the current state of the switch regardless of state change
+    Serial.print("Switch on pin ");
+    Serial.print(pin);
+    Serial.print(" (index ");
+    Serial.print(i);
+    Serial.print(") current state: ");
+    Serial.println(currentState ? "ON" : "OFF");
+    */
+    
+}
+
+
+
 
     // Read commands from Serial1 (from ESP32) and execute them
     if (Serial2.available()) {
@@ -412,6 +543,11 @@ void loop() {
 //      Serial.println ("Error: Serial1 (ESP32) not available.");
 //      delay (2000);
     }
+    relays.update();  // Update relay states
+
+
+
 }
+
 
 #endif
