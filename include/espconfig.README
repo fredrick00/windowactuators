@@ -1,0 +1,2 @@
+Copy espconfigTEMPLATE.h to espconfig.h
+Modify the ssid and password in espconfig.h to reflect your network.

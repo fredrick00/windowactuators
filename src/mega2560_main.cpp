@@ -1,6 +1,7 @@
 #ifdef __AVR_ATmega2560__
 
 #include <Arduino.h>
+#include "megatypes.h"
 
 
 class MegaRelayControl {
@@ -13,23 +14,52 @@ public:
         bool isExtending;
         bool isRetracting;
         unsigned long startTime;
-        unsigned long remainingTime;
-        unsigned long duration;  
+        unsigned long actuatorPosition;
+        unsigned long maxDuration;
 
     } relayStates[MAX_PINS]; // Static array for relay states
 
     MegaRelayControl
   (const int* pins, int numPins) : numPins(numPins) {
-        totalActuators = numPins / 2; // Calculate total actuators based on numPins
+        //  totalActuators = numPins / 2; // Calculate total actuators based on numPins
         for (int i = 0; i < numPins; i++) {
             relayPins[i] = pins[i];
         }
         initializeRelays();
     }
 
-int getTotalActuators() const {
+static int getTotalActuators() {
         return totalActuators;
 }
+
+void forceOperator (int pin) {
+    Serial.print("FORCED OPERATION: ");
+    Serial.println(pin);
+    if (!relayStates[pin].isActive) {
+        activate(pin, 1); // Always send true for individual pins.
+    }
+    forcedActiveSwitch = true;
+    forcedIsExtend = 1;
+    forcedStartTime = millis();
+}
+// -------END Force Function----------- // *****
+
+
+// Initiates a forced operation for all actuators.
+void forceOperation(bool isExtend) {
+    Serial.print("FORCED OPERATION: ");
+    Serial.println(isExtend ? "EXTEND" : "RETRACT");
+    for (int i = 0; i < getTotalActuators(); i++) {
+        if (!relayStates[i].isActive) {
+            activate(i, isExtend);
+        }
+    }
+    forcedActive = true;
+    forcedIsExtend = isExtend;
+    forcedStartTime = millis();
+}
+// -------END Force Function----------- // *****
+
 
 void controlSingleActuator(int actuatorIndex, bool isExtend) {
     if (relayStates[actuatorIndex].isActive) {
@@ -45,13 +75,26 @@ void pauseSingleActuator(int actuatorIndex) {
     unsigned long currentTime = millis();
 
     if (relayStates[actuatorIndex].isActive) {
-        Serial.print("Pausing Actuator: ");
-        Serial.println(actuatorIndex);
-        unsigned long elapsed = currentTime - relayStates[actuatorIndex].startTime;
-        relayStates[actuatorIndex].remainingTime = max(relayStates[actuatorIndex].remainingTime - elapsed, 0UL);
-        if (relayStates[actuatorIndex].isRetracting) {  // Rectify remainingTime from retracting to extending
-            relayStates[actuatorIndex].remainingTime = relayStates[actuatorIndex].duration - relayStates[actuatorIndex].remainingTime;
+        //unsigned long currentExtendedDuration =
+    //relayStates[actuatorIndex].isExtending
+        //? (relayStates[actuatorIndex].durationExtended + (currentTime - relayStates[actuatorIndex].startTime))
+        //: (relayStates[actuatorIndex].durationExtended < (currentTime - relayStates[actuatorIndex].startTime)
+              //? 0UL
+              //: (relayStates[actuatorIndex].durationExtended - (currentTime - relayStates[actuatorIndex].startTime)));
+
+       Serial.print("Pausing Actuator: ");
+        Serial.print(actuatorIndex);
+        if (relayStates[actuatorIndex].isRetracting) {  // when retracting we subtract from the duration.
+            if (relayStates[actuatorIndex].actuatorPosition < currentTime - relayStates[actuatorIndex].startTime) {
+                relayStates[actuatorIndex].actuatorPosition = 0UL;
+            } else {
+                relayStates[actuatorIndex].actuatorPosition = relayStates[actuatorIndex].actuatorPosition - (currentTime - relayStates[actuatorIndex].startTime);
+            }
+        } else {
+            relayStates[actuatorIndex].actuatorPosition = relayStates[actuatorIndex].actuatorPosition + (currentTime - relayStates[actuatorIndex].startTime);
         }
+        Serial.print(" @: ");
+        Serial.println(relayStates[actuatorIndex].actuatorPosition);
 
         int pinIndex = relayStates[actuatorIndex].isExtending ? actuatorIndex : actuatorIndex + getTotalActuators();
         digitalWrite(relayPins[pinIndex], HIGH);  // Deactivate the relay
@@ -64,7 +107,6 @@ void pauseSingleActuator(int actuatorIndex) {
 
 
     void initializeRelays() {
-      pausedRemainingTime = 0;
         for (int i = 0; i < numPins; i++) {
             pinMode(relayPins[i], OUTPUT);
             digitalWrite(relayPins[i], HIGH); // Assuming HIGH means relay off
@@ -72,30 +114,26 @@ void pauseSingleActuator(int actuatorIndex) {
             relayStates[i].isExtending = false;
             relayStates[i].isRetracting = false;
             relayStates[i].startTime = 0;
-            relayStates[i].remainingTime = 0;
+            relayStates[i].actuatorPosition = 0;
+            relayStates[i].maxDuration = maxDuration;
         }
     }
 
     void controlRelays(bool isExtend) {
 
-      if (anyActive()) {
+      if (anyActive() && !forcedActive) {
         pauseAll ();
       } else {
         if (isExtend) { 
-            if (!areAnyRetracting()) { // Ensure not currently retracting
                 for (int i = 0; i < getTotalActuators(); i++) {
                     activate(i, true);
                 }
-            }
         } else {
-            if (!areAnyExtending()) { // Ensure not currently extending
-               if (pausedRemainingTime > 0) {
-                pausedRemainingTime = totalDuration - pausedRemainingTime; // rectify from extend to retract
-              }
                 for (int i = 0; i < getTotalActuators(); i++) {
+                    // adjust totalDuration to match the rectified remainingTime[i] if there is a remaining time.
+                    //totalDuration = remainingTimes[i] ? remainingTimes[i] : totalDuration;
                     activate(i, false);
                 }
-            }
         }
       }
     }
@@ -107,34 +145,27 @@ void activate(int actuatorIndex, bool isExtend) {
     Serial.println(isExtend);
 
     int pinIndex = isExtend ? actuatorIndex : actuatorIndex + getTotalActuators();
-
+       // if this actuator is not active.
     if (!relayStates[actuatorIndex].isActive) {
         digitalWrite(relayPins[pinIndex], LOW);  // Activate the relay
         relayStates[actuatorIndex].isActive = true;
         relayStates[actuatorIndex].isExtending = isExtend;
         relayStates[actuatorIndex].isRetracting = !isExtend;
         relayStates[actuatorIndex].startTime = millis();
-        relayStates[actuatorIndex].remainingTime = pausedRemainingTime ? pausedRemainingTime : totalDuration;
+        Serial.print("Actuator Position: ");
+        Serial.println (relayStates[actuatorIndex].actuatorPosition);
     }
 }
 
 
     void pauseAll() {
-        pausedRemainingTime = 0;
-        for (int i = 0; i < numPins; i++) {
-            digitalWrite(relayPins[i], HIGH);
-            if (relayStates[i].remainingTime) {
-
-              pausedRemainingTime = relayStates[i].remainingTime - (currentMillis - relayStates[i].startTime);
-              if (relayStates[i].isRetracting) {
-                 pausedRemainingTime = totalDuration - pausedRemainingTime;  // rectify from retract to extend
-              }
-              relayStates[i].remainingTime = 0;
-            }
-            relayStates[i].isActive = false;
-            relayStates[i].isExtending = false;
-            relayStates[i].isRetracting = false;
-
+        Serial.println ("Pausing all actuators.");
+        // We don't pause if we're forcing the actuators
+        if (forcedActive) {
+            return;
+        }
+        for (int i = 0; i < getTotalActuators(); i++) {
+            pauseSingleActuator(i);
         }
     }
 
@@ -166,67 +197,116 @@ void activate(int actuatorIndex, bool isExtend) {
     }
 
 void update() {
-    unsigned long currentMillis = millis();
+    unsigned long currentTime = millis();
+    if (forcedActive && (currentTime - forcedStartTime >= FORCED_DURATION)) {
+        Serial.println("Forced operation expired. Pausing all actuators.");
+        forcedActive = false;
+        pauseAll();
+    }
 
     for (int i = 0; i < getTotalActuators(); i++) {
         if (relayStates[i].isActive) {
             // Calculate elapsed time
-            unsigned long elapsedTime = currentMillis - relayStates[i].startTime;
-
-
+            unsigned long elapsedTime = currentTime - relayStates[i].startTime;
+            // The new duration is the previous duration + for extend or - for retract the elapsed time.
+            unsigned long newDuration = 0;
+            if (relayStates[i].isExtending) {
+                // ensure newDuration does not start at 0.
+                delay(1);
+                newDuration = relayStates[i].actuatorPosition + elapsedTime;
+            } else { // retracting
+                newDuration = (relayStates[i].actuatorPosition < elapsedTime) ? 0UL
+                                  : relayStates[i].actuatorPosition - elapsedTime;
+            }
             // Check if the relay should be turned off
-            if (elapsedTime >= relayStates[i].remainingTime) {
-                int pinIndex = relayStates[i].isExtending ? i : i + getTotalActuators();
+            // if the newDuration is > 0 or < duration, then we keep going.
+            if ((newDuration <= 0 && relayStates[i].isRetracting )|| (newDuration > relayStates[i].maxDuration && relayStates[i].isExtending)) {
+                    pauseSingleActuator(i);
+                    //digitalWrite(relayPins[pinIndex], HIGH);  // Stop the actuator
+                    //relayStates[i].isActive = false;
+                    //relayStates[i].isExtending = false;
+                    //relayStates[i].isRetracting = false;
+           }
 
-            digitalWrite(relayPins[pinIndex], HIGH);  // Stop the actuator
-            relayStates[i].isActive = false;
-            relayStates[i].isExtending = false;
-            relayStates[i].isRetracting = false;
-
-            Serial.print("Actuator ");
-            Serial.print(i);
-            Serial.println(" stopped.");
           }
         }
     }
-}
-
 
 private:
     int numPins;
     bool activateRelay;
-    long pausedRemainingTime = 0;
-    int totalActuators; // Encapsulated as a private member
+    static const int totalActuators = MAX_PINS / 2;
+    unsigned long remainingTimes[totalActuators];
 
-    unsigned long currentMillis = millis();
-    const unsigned long totalDuration = 5000; // Total duration in milliseconds
+    //unsigned long currentMillis = millis();
+    // Max duration in milliseconds before duration is capped.
+    const unsigned long maxDuration = 8000;
+
+    // Members and method to enable a forced extend/retract mode.
+    bool forcedActive = false; // True when a forced operation is active
+    bool forcedActiveSwitch = false;
+    bool forcedIsExtend = false; // True for extend, false for retract during forced operation
+    unsigned long forcedStartTime = 0; // Timestamp when the forced mode started
+    static const unsigned long FORCED_DURATION = 5000UL; // Forced operation lasts 5000 ms
 };
+
+
 
 
 // MegaButton class to handle button state changes
 class MegaButton {
 public:
-    MegaButton(int pin) : pin(pin), lastState(HIGH) {
+    MegaButton(int pin) : pin(pin), lastState(HIGH), lastPressTime(0) {
         pinMode(pin, INPUT_PULLUP);
         lastState = digitalRead(pin);  // Initialize lastState with the current state of the button
-
     }
 
+
+    // Basic state change detection (debounced) bool
     bool stateChanged() {
-        int currentState = digitalRead(pin);
-        if (currentState != lastState) {
-          Serial.print (currentState);
-          Serial.println (lastState);
-            lastState = currentState;
-            
+        const int debounceChecks = 5;
+        const int debounceDelayMs = 10;
+        int persistentState = digitalRead(pin);
+        // Check pin multiple times with a delay
+        for (int i = 0; i < debounceChecks; i++) {
+            delay(debounceDelayMs);
+            if (digitalRead(pin) != persistentState) {
+                // Not consistent, return false
+                return false;
+            }
+        }
+        if (persistentState != lastState) {
+            lastState = persistentState;
             return true;
         }
         return false;
     }
 
+    bool isDoublePressed() {
+        lastPressTime = currentPressTime;
+        currentPressTime = millis();
+        if (currentPressTime - lastPressTime < threshold) {
+           return true;
+        }
+        return false;
+    }
+
+    // Returns a ButtonEvent indicating the button press nature ButtonEvent
+    ButtonState getButtonState() {
+        if (stateChanged()) {
+            if (isDoublePressed()) {
+                return ButtonState::DOUBLE_PRESSED;
+            } else {
+                return ButtonState::SINGLE_PRESSED;
+            }
+        } return ButtonState::NONE;
+    }
 private:
     int pin;
     int lastState;
+    static const int threshold = 1000; // Debounce threshold in milliseconds
+    unsigned long currentPressTime;
+    unsigned long lastPressTime;
 };
 
 // MegaLEDControl class to handle LED operations
@@ -277,6 +357,7 @@ private:
     unsigned long previousMillis;
     bool extendLedState, retractLedState;
     bool nightMode;
+
 };
 
 class MegaCommand {
@@ -366,7 +447,7 @@ public:
         return *this;
     }
 
-    bool isPressed() {
+    bool isPressed() const {
         return digitalRead(pin) == LOW;
     }
 
@@ -376,12 +457,10 @@ public:
             lastDebounceTime = millis(); 
         }
 
-        if ((millis() - lastDebounceTime) > debounceDelay) {
-            if (currentState != state) {
+        if ((millis() - lastDebounceTime) > debounceDelay && currentState != state) {
                 state = currentState;
                 lastState = currentState;
                 return true;
-            }
         }
 
         lastState = currentState;
@@ -401,26 +480,120 @@ private:
 };
 
 
+//-------------------------------------------------------------------- //
+// MegaInputManager class: Reads two overall buttons and an array // of switch inputs (assumed here to be four physical switches).
+class MegaInputManager {
+
+
+private:
+    // Switches for individual control.
+    static const int numSwitchPins = 8;
+    // Hardware buttons for overall extend/retract actions.
+    static const int extendButtonPin = 12; // Example pin for extend
+    static const int retractButtonPin = 13; // Example pin for retract
+    // Here we assume there are four physical switches.
+    const int switchPins[numSwitchPins] = {8, 9, 7, 6, 5, 4, 3, 2};
+    unsigned long thisSwitchActivationTime[numSwitchPins];
+    unsigned long previousSwitchActivationTime[numSwitchPins];
+    SwitchMode switchMode[numSwitchPins];
+    int switch2Actuator[numSwitchPins];
+
+
+
+
+    public:
+    // Use the same enum for button and switch events.
+    MegaButton extendButton;
+    MegaButton retractButton;
+    Switch switches[numSwitchPins]; // Use the same type as the events produced by buttons.
+    ButtonState switchStates[numSwitchPins];
+    // State variables for the extend and retract buttons.
+    ButtonState extendState;
+    ButtonState retractState;
+
+    // Constructor: Create the two buttons and initialize the switch array.
+    MegaInputManager() : extendButton(extendButtonPin), retractButton(retractButtonPin), extendState(ButtonState::NONE), retractState(ButtonState::NONE) {
+        // Initialize each physical switch with its corresponding pin.
+        for (int i = 0; i < getNumSwitchPins(); i++) {
+            switches[i] = Switch(switchPins[i]);
+            switchStates[i] = ButtonState::NONE;
+            if (i & 1) { // Will evaluate true for odd numbers
+                // We will assume that numSwitchPins == 2 * number of actuators.
+                switch2Actuator[i] = i / 2; // For retract, actuator number is i - totalActuators.
+                switchMode[i] = SwitchMode::RETRACT; // Set the switch mode to extend/retract
+            } else {
+                switch2Actuator[i] = i / 2;
+                switchMode[i] = SwitchMode::EXTEND;
+            }
+            // timestamp for current and previous switch activation to detect FORCE extend/retract request.
+            // for loop to cycle through switches and initiate thisSwitchActivationTime and previousSwitchActivationTime arrays to numSwitchPins in size.
+            thisSwitchActivationTime[i] = 0;
+            previousSwitchActivationTime[i] = 0;
+        }
+
+    }
+
+    // get function
+    static const int getNumSwitchPins() {
+        return numSwitchPins;
+    }
+    // Call this each loop to measure the current inputs.
+    void updateInputs() {
+        // Update the overall buttons.
+        extendState = extendButton.getButtonState();
+        retractState = retractButton.getButtonState();
+        // Update each switch.
+        for (int i = 0; i < getNumSwitchPins(); i++) {
+            if (switches[i].hasStateChanged()) {
+                // We treat a changed state that is pressed (LOW on Arduino when using INPUT_PULLUP) // as a SINGLE_PRESSED event.
+                switchStates[i] = switches[i].getState() ? ButtonState::SINGLE_PRESSED : ButtonState::NONE;
+            } else {
+                switchStates[i] = ButtonState::NONE;
+            }
+        }
+    }
+    // Accessors for use elsewhere in your program.
+    ButtonState getExtendState() const {
+        return extendState;
+    }
+    ButtonState getRetractState() const {
+        return retractState;
+    }
+    ButtonState getSwitchState(int index) const {
+        return (index >= 0 && index < getNumSwitchPins()) ? switchStates[index] : ButtonState::NONE;
+    }
+    // Identify whether this is a double-flick of the switch
+    ButtonState isSwitchDoubleFlick(int index) {
+        previousSwitchActivationTime[index] = thisSwitchActivationTime[index];
+        thisSwitchActivationTime[index] = millis();
+        if (thisSwitchActivationTime[index] - previousSwitchActivationTime[index] < 1000) {
+            return ButtonState::DOUBLE_PRESSED;
+        } else {
+            return ButtonState::SINGLE_PRESSED;
+        }
+    }
+
+    SwitchMode getSwitchMode(int index) {
+        return switchMode[index];
+    }
+
+    int getSwitch2Actuator(int index) {
+        return switch2Actuator[index];
+    }
+};
+
+
+
 
 
 // Version of this software
-const String KitchenScriptVersion = "KitchenWindows v1.0";
+const String KitchenScriptVersion = "KitchenWindows V1.13";
 
 // Pin setup and object instantiation
 const int extendLedPin = 11; // 
 const int retractLedPin = 10; // 
 MegaLEDControl leds(extendLedPin, retractLedPin); // Create an instance of MegaLEDControl
 
-const int switchPins[] = {8, 9, 7, 6, 5, 4, 3, 2}; // Define the pins for the 4 momentary switches
-const int switchCount = sizeof(switchPins) / sizeof(switchPins[0]);
-bool switchStates[] = {false, false, false, false}; // Store the state of each switch
-// Declare an array of Switch objects
-Switch switches[switchCount]; // Declare the array first
-
-const int extendButtonPin = 12; // Example pin number for the extend button
-const int retractButtonPin = 13; // Example pin number for the retract button
-MegaButton extendButton(extendButtonPin);  // Creating an instance of MegaButton for extend
-MegaButton retractButton(retractButtonPin);  // Creating an instance of MegaButton for retract
 
 const int relayPins[] = {51, 49, 47, 45, 43, 41, 39, 37};  // actuator relay pinout with extend being first half and retract second half
 MegaRelayControl relays(relayPins, sizeof(relayPins) / sizeof(relayPins[0]));  // Creating an instance of MegaRelayControl
@@ -428,6 +601,7 @@ MegaRelayControl relays(relayPins, sizeof(relayPins) / sizeof(relayPins[0]));  /
 // Initialize the MegaActuatorController instance
 MegaActuatorController actuatorController(relays, leds);
 
+MegaInputManager inputManager;  // Create an instance of MegaInputManager
 
 void setup() {
     // Setup code here, if needed
@@ -437,34 +611,37 @@ void setup() {
     relays.initializeRelays(); // Initialize all relays to off
     // create a clear beginning of program execution
         // Initialize switch pins
-    // Initialize each switch with its corresponding pin
-    for (int i = 0; i < switchCount; i++) {
-      switches[i] = Switch(switchPins[i]);
-    }
+
  //   switches[1] = Switch(9);
  //   switches[2] = Switch(7);
-//    switches[3] = Switch(6);  
+//    switches[3] = Switch(6);
     Serial.print ("\n\n/**\n/**\n/**  Version: ");
     Serial.println (KitchenScriptVersion);
     Serial.println ("/**  Script restarted on Mega board.\n/**\n/**\n");
 }
 
 void loop() {
-    int simulatedHour = (millis() / 200) % 24;  // Simulate time for demonstration
-
-
-
-
-
-    if (extendButton.stateChanged()) {
+    ButtonState extendButtonState = inputManager.extendButton.getButtonState();
+    ButtonState retractButtonState = inputManager.retractButton.getButtonState();
+    if (extendButtonState == ButtonState::DOUBLE_PRESSED) {
+        Serial.println("\nDouble-press detected on extend button");
+        relays.forceOperation(1); // true for extend
+        return;
+    } else if (extendButtonState == ButtonState::SINGLE_PRESSED) {
         Serial.println("\nState changed to extend");
-      if (relays.anyActive()) {
-        relays.pauseAll();
-        leds.setFullBrightness(false, false);
-      } else {
-        relays.controlRelays(true);  // Extend relays
-      }
-    } else if (retractButton.stateChanged()) {
+        if (relays.anyActive()) {
+            relays.pauseAll();
+            leds.setFullBrightness(false, false);
+        } else {
+            // extend all of the relays
+            relays.controlRelays(true);  // Extend relays
+            leds.setFullBrightness(true, true);
+        }
+    } else if (retractButtonState == ButtonState::DOUBLE_PRESSED) {
+        Serial.println("\nDouble-press detected on retract button");
+        relays.forceOperation(false);  // false for retract
+        return;
+    } else if (retractButtonState == ButtonState::SINGLE_PRESSED) {
       Serial.println("\nState changed to retract");
       if (relays.anyActive()) {
         relays.pauseAll();
@@ -473,8 +650,8 @@ void loop() {
  //       Serial.println("State changed to retract");
         relays.controlRelays(false);  // Retract relays
       }
-    } 
-     if (!relays.anyActive()) {
+    }
+    if (!relays.anyActive()) {
 //        Serial.println("No relays active");
  //       leds.checkNightMode(simulatedHour);
         leds.updateBlink(millis());
@@ -491,28 +668,35 @@ void loop() {
     }
 
     // Check each switch and control the corresponding actuator
-for (int i = 0; i < switchCount; ++i) {
-    int pin = switchPins[i];  // Get the pin associated with the current switch
-    bool currentState = switches[i].getState();  // Get the current state of the switch
-    
-    if (switches[i].hasStateChanged()) {
-        Serial.print("Switch on pin ");
-        Serial.print(pin);
+for (int i = 0; i < relays.getTotalActuators() * 2; ++i) {
+    ButtonState currentState = inputManager.getSwitchState(i);  // Get the current state of the switch
+    if (inputManager.getSwitchState(i) == ButtonState::SINGLE_PRESSED) {
+        // Check if this is a double-flick indicating a FORCE Extend/Retract command.
+        if (inputManager.isSwitchDoubleFlick(i) == ButtonState::DOUBLE_PRESSED) {
+            Serial.print("Force Extend/Retract command detected on switch on pin ");
+            Serial.println(i);
+            // extend or retract this only this pin using the force
+            int actuatorNum;
+            actuatorNum = i / 2; // converts switch pins to actuator pins
+            bool isExtend = !(i & 1); // checks if switch pin is even (true) or odd (false)
+            relays.activate(actuatorNum,isExtend);  // Send true to activate so it doesn't convert the input pin before actuating.
+            return;
+        }
         Serial.print(" (index ");
         Serial.print(i);
-        Serial.print(") state changed to ");
-        Serial.println(currentState ? "ON" : "OFF");
+        Serial.println(") state changed");
 
         // Example: Control actuators based on switch state
-        if (currentState) {
+        if (currentState == ButtonState::SINGLE_PRESSED) {
             // Activate the corresponding actuator
             Serial.print("Activating actuator for switch on pin ");
-            Serial.println(pin);
-            relays.controlSingleActuator(i, true); // Assume true for extend
+            Serial.println(i);
+            bool thisActuatorMode = inputManager.getSwitchMode(i) == SwitchMode::EXTEND;
+            relays.controlSingleActuator(i, thisActuatorMode);
         } else {
             // Pause or deactivate the corresponding actuator
             Serial.print("Pausing actuator for switch on pin ");
-            Serial.println(pin);
+            Serial.println(i);
             relays.pauseSingleActuator(i);
         }
     }
@@ -548,9 +732,6 @@ for (int i = 0; i < switchCount; ++i) {
 //      delay (2000);
     }
     relays.update();  // Update relay states
-
-
-
 }
 
 
