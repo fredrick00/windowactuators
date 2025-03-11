@@ -12,13 +12,6 @@ enum class ButtonState {
   DOUBLE_PRESSED,
 };
 
-enum class SwitchMode {
-  EXTEND,
-  RETRACT
-};
-//class megatypes {
-
-//};
 
 
 
