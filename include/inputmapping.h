@@ -11,6 +11,7 @@
 
 namespace ActuatorsController {
 
+
     // Enum for specifying the switch mode.
     enum class Mode {
         NONE,

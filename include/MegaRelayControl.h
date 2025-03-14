@@ -37,8 +37,6 @@ void forceOperator (int actuatorIndex) {
     if (!relayStates[actuatorIndex].isActive) {
         activate(actuatorIndex); //
     }
-    forcedActive = true;
-    forcedStartTime = millis();
 }
 // -------END Force Function----------- // *****
 
@@ -47,6 +45,8 @@ void forceOperator (int actuatorIndex) {
 void forceOperation(bool isExtend) {
     Serial.print("FORCED OPERATION (all actuators): ");
     Serial.println(isExtend ? "EXTENDING" : "RETRACTING");
+    forcedActive = true;
+    forcedStartTime = millis();
     for (int i = 0; i < MAX_PINS; i++) {
         if (!relayStates[i].isActive && (ActuatorsController::inputMappings[i].mode == Mode::EXTENDING) == isExtend) {
             forceOperator(i);
@@ -57,7 +57,7 @@ void forceOperation(bool isExtend) {
 
 
 void controlSingleActuator(int actuatorIndex) {
-    if (relayStates[actuatorIndex].isActive) {
+    if (relayStates[actuatorIndex].isActive && !isForceMode()) {
         // The actuator is active, so pause it first
         pauseSingleActuator(actuatorIndex);
     } else {
@@ -96,16 +96,25 @@ void controlSingleActuator(int actuatorIndex) {
     }
 
 void activate(int actuatorIndex) {
-    Serial.print("Activating actuator. (Index/Action): ");
-    Serial.print(ActuatorsController::inputMappings[actuatorIndex].actuatorName);
+    Serial.print("Activating actuator. (Pin/Action): ");
+    Serial.print(ActuatorsController::inputMappings[actuatorIndex].actuatorPin);
     Serial.print("/");
     Serial.println((ActuatorsController::inputMappings[actuatorIndex].mode == Mode::EXTENDING) ? "EXTENDING" : "RETRACTING");
 
        // if this actuator is not active.
-        digitalWrite(ActuatorsController::inputMappings[actuatorIndex].actuatorPin, LOW);  // Activate the relay
-        relayStates[actuatorIndex].isActive = true;
-        relayStates[actuatorIndex].relayState = ActuatorsController::inputMappings[actuatorIndex].mode;
-        relayStates[actuatorIndex].startTime = millis();
+        if (!relayStates[actuatorIndex].isActive) {
+            relayStates[actuatorIndex].isActive = true;
+            digitalWrite(ActuatorsController::inputMappings[actuatorIndex].actuatorPin, LOW);  // Activate the relay
+            const char * thisActuatorName = ActuatorsController::inputMappings[actuatorIndex].actuatorName;
+            unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
+            for (int i = 0; i < MAX_PINS; i++) {
+                if (ActuatorsController::inputMappings[i].actuatorName == thisActuatorName) {
+                    relayStates[i].relayState = ActuatorsController::inputMappings[actuatorIndex].mode;
+                    relayStates[i].actuatorPosition = thisActuatorPosition;
+                    relayStates[i].startTime = millis();
+                }
+            }
+        }
         Serial.print("Actuator Position: ");
         Serial.println (relayStates[actuatorIndex].actuatorPosition);
     }
@@ -114,17 +123,11 @@ void pauseSingleActuator(int actuatorIndex) {
     unsigned long currentTime = millis();
 
     if (relayStates[actuatorIndex].isActive) {
-        //unsigned long currentExtendedDuration =
-        //relayStates[actuatorIndex].isExtending
-        //? (relayStates[actuatorIndex].durationExtended + (currentTime - relayStates[actuatorIndex].startTime))
-        //: (relayStates[actuatorIndex].durationExtended < (currentTime - relayStates[actuatorIndex].startTime)
-        //? 0UL
-        //: (relayStates[actuatorIndex].durationExtended - (currentTime - relayStates[actuatorIndex].startTime)));
 
-        Serial.print("Pausing Actuator: ");
-        Serial.print(actuatorIndex);
+        Serial.print("Pausing Actuator on pin: ");
+        Serial.print(ActuatorsController::inputMappings[actuatorIndex].actuatorPin);
         // if this is a retracting actuator
-        if (relayStates[actuatorIndex].relayState == Mode::RETRACTING)
+        if (ActuatorsController::inputMappings[actuatorIndex].mode == Mode::RETRACTING)
         {  // when retracting we subtract from the duration.
             if (relayStates[actuatorIndex].actuatorPosition < currentTime - relayStates[actuatorIndex].startTime)
             {
@@ -139,6 +142,15 @@ void pauseSingleActuator(int actuatorIndex) {
         Serial.println(relayStates[actuatorIndex].actuatorPosition);
 
         digitalWrite(ActuatorsController::inputMappings[actuatorIndex].actuatorPin, HIGH);  // Deactivate the relay
+        const char* thisActuatorName = ActuatorsController::inputMappings[actuatorIndex].actuatorName;
+        unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
+        for (int i = 0; i < MAX_PINS; i++) {
+            if (ActuatorsController::inputMappings[i].actuatorName == thisActuatorName) {
+                relayStates[i].isActive = false;
+                relayStates[i].relayState = ActuatorsController::Mode::PAUSED;
+                relayStates[i].actuatorPosition = thisActuatorPosition;
+            }
+        }
     }
 }
 
@@ -192,17 +204,21 @@ void update() {
             unsigned long elapsedTime = currentTime - relayStates[i].startTime;
             // The new duration is the previous duration + for extend or - for retract the elapsed time.
             unsigned long newDuration = 0;
-            if (relayStates[i].relayState == Mode::EXTENDING) {
+            if (ActuatorsController::inputMappings[i].mode == Mode::EXTENDING) {
                 newDuration = relayStates[i].actuatorPosition + elapsedTime;
-            } else if (relayStates[i].relayState == Mode::RETRACTING) { // retracting
+            } else if (ActuatorsController::inputMappings[i].mode == Mode::RETRACTING) { // retracting
                 newDuration = (relayStates[i].actuatorPosition < elapsedTime) ? 0UL
                                   : relayStates[i].actuatorPosition - elapsedTime;
             }
             // Check if the relay should be turned off
-            // if the newDuration is > 0 or < duration, then we keep going.
-            if ((newDuration <= 0 && relayStates[i].relayState == Mode::RETRACTING)|| (newDuration > relayStates[i].maxDuration && relayStates[i].relayState == Mode::EXTENDING)) {
+            // let it keep running if in force mode.
+            if (!isForceMode()) {
+                // if the newDuration is > 0 or < duration, then we keep going.
+                if ((newDuration <= 0 && relayStates[i].relayState == Mode::RETRACTING)
+                    || (newDuration > relayStates[i].maxDuration && relayStates[i].relayState == Mode::EXTENDING)) {
                     pauseSingleActuator(i);
-           }
+                }
+            }
 
           }
         }
