@@ -2,10 +2,12 @@
 // Created by fredr on 3/9/2025.
 //
 
+#pragma once
+
 // inputmapping.h
-#ifndef inputmapping_h
-#define inputmapping_h
-#include <stddef.h>
+#include "Debounced.h"
+#include <array>
+
 
 namespace ActuatorsController {
 
@@ -53,6 +55,11 @@ namespace ActuatorsController {
     // Define MAX_PINS as (count - 2 to exclude extend/retract all).
     constexpr int MAX_PINS = MAX_INPUTS_COUNT - 2;
     constexpr int TOTAL_ACTUATORS = MAX_PINS;
-} // namespace ActuatorsController
 
-#endif // inputmapping_h
+    // Using std::array for fixed-size allocation.
+    std::array<Debounced, MAX_INPUTS_COUNT> debouncedSwitches;
+
+    // Create an instance (adjust the pin and interval as needed)
+    Debounced mySwitch(2, 50); // Pin 2 with 50ms debounce time
+
+} // namespace ActuatorsController
