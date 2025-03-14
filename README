@@ -1,0 +1,85 @@
+Mega Actuators & Wireless Control System
+==========================================
+
+Overview
+--------
+This project implements a modular control system for managing multiple actuators – for example, mechanisms that need to extend or retract – in a hardware setup that spans both traditional Arduino (Mega2560) and ESP32 platforms. The system is designed to handle physical inputs (buttons and switches), control relay operations to drive actuators, manage LED feedback, and generate status reports.
+
+Key Features
+------------
+• Dual Platform Support:
+  – The Arduino Mega2560 firmware (mega2560_main.cpp) is responsible for local control of actuators via relay outputs, LED indicators, and reading various physical inputs (switches and buttons).
+  – The ESP32 firmware (esp32_main.cpp) adds wireless functionality. Use the provided template (espconfigTEMPLATE.h) to configure your network (via espconfig.h).
+
+• Modular Architecture:
+  – Actuator Control: Modules like MegaActuatorController and MegaRelayControl encapsulate the functionality needed to initiate extension and retraction commands based on input events or parsed commands.
+  – LED Feedback: MegaLEDControl handles LED behavior including brightness control and blinking patterns, optionally adjusting for night mode based on time.
+  – Input Handling: MegaInputManager, along with MegaButton and MegaSwitch, collects and debounces user inputs. The system even detects advanced events like single versus double presses.
+  – Command Parsing: MegaCommand provides a simple means for processing string commands (e.g., “EXTENDING” or “RETRACTING”) to trigger proper actuator responses.
+
+• Status Reporting:
+  – ActuatorReporter generates JSON-formatted status reports (including timestamps, force mode, and individual actuator states) and sends them via Serial2, which is useful for debugging or remote monitoring.  This feature will be used to update the web interface in the future.
+
+• Robust Debouncing:
+  – Various modules (Debounced, MegaButton, MegaSwitch) ensure that all physical inputs are debounced properly to avoid spurious signals during operation.
+
+Hardware & Configuration
+--------------------------
+• Arduino Mega2560:
+  – Manages the direct control of actuator relays and LED outputs.
+  – Inputs are mapped via a dedicated inputmapping file, which sets up individual actuator controls as well as global “all actuators” commands.
+
+• ESP32:
+  – Provides wireless connectivity.
+  – Configure your network by copying espconfigTEMPLATE.h to espconfig.h and editing the SSID and password to match your WiFi environment.
+
+• Wiring Considerations:
+  – Relay pins, LED pins (for extend and retract indication), and hardware buttons/switches are defined in appropriate headers and main files.
+  – Ensure that connections match the pin assignments used in input mapping and relay control.
+
+Getting Started
+---------------
+1. Hardware Setup:
+   – Assemble your actuators, relays, LEDs, and buttons/switches according to your specific wiring needs.
+   – Update the include file inputmappings.h to reflect your pin setup.
+
+2. Firmware Configuration:
+   – For wireless functionality on the ESP32, copy espconfigTEMPLATE.h to espconfig.h and set your WiFi SSID and password.
+   – Compile and deploy the corresponding firmware to your Arduino Mega2560 and ESP32 boards.
+
+3. Compilation and Deployment:
+   – Use Arduino IDE, PlatformIO, or your preferred build system to compile the source files (esp32_main.cpp, mega2560_main.cpp, and associated modules).
+   – The modular header files located in the project include directory are shared across the source files to maintain a clean separation of concerns.
+
+4. Operation:
+   – The system listens for physical user inputs (button presses, switch toggles) to control actuator operations.
+   – Command inputs (formatted as “ACTION actuatorID” where ACTION can be EXTENDING or RETRACTING) are processed by the MegaActuatorController.
+   – The ActuatorReporter periodically generates JSON reports of the system’s status, providing real-time feedback.
+
+Project Structure
+-----------------
+• esp32_main.cpp
+  – Contains the entry point for wireless and network communication logic (ESP32-specific).
+
+• mega2560_main.cpp
+  – Implements the main control loop for actuator operations, LED control, and input processing (Arduino Mega2560-specific).
+  – Includes a version string (e.g., "KitchenWindows V1.14") indicating the iteration of the control script.
+
+• Header Files (e.g., MegaActuatorController.h, MegaRelayControl.h, MegaLEDControl.h, MegaInputManager.h, etc.)
+  – Provide the declarations and definitions needed to share functionality between different source files.
+  – Each module is designed to encapsulate specific behavior (e.g., debouncing switches, managing relay states, or processing command events).
+
+• Configuration Files:
+  – espconfigTEMPLATE.h provides a basis for wireless network configuration.
+  – Users should rename this file to espconfig.h and customize the settings for their network environment.
+
+Documentation & Further Reading
+-------------------------------
+• For information on using header files in C/C++ projects, refer to the GCC documentation on header files.
+• Detailed comments in each header file explain the roles of classes and functions.
+
+Conclusion
+----------
+This project demonstrates a robust and modular approach to real-time actuator control using both local (Arduino Mega2560) and wireless (ESP32) technologies. By combining clear module separation with effective input handling and state reporting, this system can be adapted and expanded for a variety of automated control applications.
+
+Happy coding and hardware hacking!
