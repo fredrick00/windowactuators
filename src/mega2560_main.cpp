@@ -128,8 +128,6 @@ for (int i = 0; i < MAX_PINS; ++i) {
     // Read commands from Serial1 (from ESP32) and execute them
     if (Serial2.available()) {
         String commandStr = Serial2.readStringUntil('\n');
-        Serial.print ("Serial2 available.  String content: ");
-        Serial.print (commandStr);
         commandStr.trim(); // Remove any extraneous whitespace or newline characters
         if (commandStr.length() > 0) {
             MegaCommand command(commandStr);

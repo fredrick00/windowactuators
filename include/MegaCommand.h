@@ -30,9 +30,12 @@ private:
       action = rawCommand.substring(0, spaceIndex);
       String actuatorStr = rawCommand.substring(spaceIndex + 1);
       if (actuatorStr == "ALL") {
-        actuator = 0;
+        actuator = -1;
       } else {
-        actuator = actuatorStr.toInt();
+        actuator = actuatorStr.toInt() - 1;
+        if (action == "RETRACT") {
+          actuator = actuator + (MAX_PINS / 2);
+        }
       }
     }
   }
