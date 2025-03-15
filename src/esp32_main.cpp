@@ -10,8 +10,9 @@
 #include <ArduinoJson.h>
 #include "espconfig.h"
 #include <ArduinoOTA.h>
+#include "esp32/StatusReportProcessor.h"
 
-const String ESP32ScriptVersion = "esp32WindowInterface v1.12";
+const String ESP32ScriptVersion = "esp32WindowInterface v1.13";
 bool haveWiFi = true; // Boolean to toggle WiFi reconnect attempts
 
 unsigned long lastWiFiAttemptMillis = 0;
@@ -158,6 +159,7 @@ WiFiManager wifiManager;
 WebServerManager webServerManager;
 // Instantiate OTAUpdater globally (alongside WiFiManager and WebServerManager)
 OTAUpdater otaUpdater;
+StatusReportProcessor statusProcessor(Serial2);
 
 
 void WiFiManager::connectToWiFi() {
@@ -380,6 +382,7 @@ void setup() {
   webServerManager.begin();
   otaUpdater.beginOTA();
 
+
   /** Make it clear the esp32 was just started. **/
   Serial.print ("\n\n/**\n/**  ");
   Serial.println (ESP32ScriptVersion);
@@ -388,52 +391,24 @@ void setup() {
   Serial2.println ("ESP32 Booted and Connected.");
 }
 
-
-/** Begin actual executable code **/
 void loop() {
- // btManager.handleBluetooth();
   wifiManager.handleWiFi();
   webServerManager.handleClient();
   otaUpdater.handleOTA();
-/**
-  if (millis() - lastBluetoothCheck >= bluetoothCheckInterval) {
-    lastBluetoothCheck = millis();
-    btManager.handleBluetooth();
-  }
-  **/
-
   if (Serial2.available()) {
+    // Read the status string from Serial2
     String status = Serial2.readStringUntil('\n');
     Serial.print("Status from Mega: ");
     Serial.println(status);
 
-    // Process the status here
-    for (int i = 0; i < 4; i++) {
-      actuatorStatus[i] = INACTIVE; // Reset status
+    // Let the statusProcessor take care of processing the status.
+    // This function should handle all the tokenization and
+    // update actuatorStatus (or any other states) accordingly.
+    if (Serial2.available()) {
+      statusProcessor.process(Serial2);
     }
-
-    int index = status.indexOf("STATUS ");
-    if (index >= 0) {
-      status = status.substring(index + 7);
-      while (status.length() > 0) {
-        int spaceIndex = status.indexOf(' ');
-        if (spaceIndex < 0) spaceIndex = status.length();
-        String token = status.substring(0, spaceIndex);
-        status = status.substring(spaceIndex + 1);
-
-        if (token.length() > 1) {
-          int actuator = token[0] - '1';
-          char state = token[1];
-          if (state == 'E') {
-            actuatorStatus[actuator] = EXTENDING;
-          } else if (state == 'R') {
-            actuatorStatus[actuator] = RETRACTING;
-          }
-        }
-      }
-    }
-  } 
-  
+  }
 }
 
-#endif
+
+  #endif

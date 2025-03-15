@@ -11,7 +11,7 @@ namespace ActuatorsController {
 
 class MegaActuatorController {
 public:
-  MegaActuatorController(inputMappings::MegaRelayControl
+  MegaActuatorController(MegaRelayControl
                          & relayControl, MegaLEDControl& ledControl)
     : relays(relayControl), leds(ledControl) {}
 
@@ -42,7 +42,7 @@ public:
   }
 
 private:
-  inputMappings::MegaRelayControl
+  MegaRelayControl
 & relays;
   MegaLEDControl& leds;
 };

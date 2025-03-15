@@ -10,6 +10,7 @@
 #include "MegaCommand.h"
 #include "MegaActuatorController.h"
 #include "MegaInputManager.h"
+#include "MegaStateWatcher.h"
 //#include "MegaSwitch.h"
 
 using namespace ActuatorsController;
@@ -22,17 +23,17 @@ MegaLEDControl leds(extendLedPin, retractLedPin); // Create an instance of MegaL
 
 
 //const int relayPins[] = {51, 49, 47, 45, 43, 41, 39, 37};  // actuator relay pinout with extend being first half and retract second half
-inputMappings::MegaRelayControl relays;  // Creating an instance of MegaRelayControl
+MegaRelayControl relays;  // Creating an instance of MegaRelayControl
 
 // Initialize the MegaActuatorController instance
 MegaActuatorController actuatorController(relays, leds);
 
 MegaInputManager inputManager;  // Create an instance of MegaInputManager
-ActuatorReporter* statusReporter = nullptr;
-
+ActuatorReporter statusReporter = ActuatorReporter(relays);
+MegaStateWatcher stateWatcher(relays, statusReporter);
 
 // Version of this software
-const String KitchenScriptVersion = "KitchenWindows V1.14";
+const String KitchenScriptVersion = "KitchenWindows V1.21";
 
 void setup() {
     // Setup code here, if needed
@@ -40,7 +41,6 @@ void setup() {
     Serial2.begin(115200);   // Serial communication with ESP-32
    // Serial2 uses RX (Pin 17) and TX (Pin 16) on Arduino Mega 2560
     relays.initializeRelays(); // Initialize all relays to off
-    statusReporter = new ActuatorReporter(relays);  // Create an instance of ActuatorReporter
 
     Serial.print ("\n\n/**\n/**\n/**  Version: ");
     Serial.println (KitchenScriptVersion);
@@ -140,6 +140,8 @@ for (int i = 0; i < MAX_PINS; ++i) {
 //      delay (2000);
     }
     relays.update();  // Update relay states
+    stateWatcher.checkAndReport();
+
 }
 
 

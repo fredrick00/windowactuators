@@ -6,20 +6,20 @@
 #include <Arduino.h>
 #include "inputmapping.h"
 
-namespace inputMappings {
+namespace ActuatorsController {
 
 class MegaRelayControl {
 public:
-    ActuatorsController::Mode stateReport;
+    Mode stateReport;
 
     struct RelayState {
         bool isActive;
-        ActuatorsController::Mode relayState;
+        Mode relayState;
         unsigned long startTime;
         unsigned long actuatorPosition;
         unsigned long maxDuration;
 
-    } relayStates[ActuatorsController::MAX_PINS]; // Static array for relay states
+    } relayStates[MAX_PINS]; // Static array for relay states
 
     MegaRelayControl
   () {
@@ -48,7 +48,7 @@ void forceOperation(bool isExtend) {
     forcedActive = true;
     forcedStartTime = millis();
     for (int i = 0; i < MAX_PINS; i++) {
-        if (!relayStates[i].isActive && (ActuatorsController::inputMappings[i].mode == Mode::EXTENDING) == isExtend) {
+        if (!relayStates[i].isActive && (inputMappings[i].mode == Mode::EXTENDING) == isExtend) {
             forceOperator(i);
         }
     }
@@ -69,8 +69,9 @@ void controlSingleActuator(int actuatorIndex) {
 
     void initializeRelays() {
         for (int i = 0; i < MAX_PINS; i++) {
-            pinMode(ActuatorsController::inputMappings[i].actuatorPin, OUTPUT);
-            digitalWrite(ActuatorsController::inputMappings[i].actuatorPin, HIGH); // Assuming HIGH means relay off
+            pinMode(inputMappings[i].actuatorPin, OUTPUT);
+            digitalWrite(inputMappings[i].actuatorPin, HIGH); // Assuming HIGH means relay off
+            stateChanged = true;
             relayStates[i].isActive = false;
             relayStates[i].startTime = 0;
             relayStates[i].actuatorPosition = 0;
@@ -86,8 +87,8 @@ void controlSingleActuator(int actuatorIndex) {
       } else {
         for (int i = 0; i < MAX_PINS; i++) {
             // activate relays for the action indicated by isExtend
-            if ((isExtend && ActuatorsController::inputMappings[i].mode == Mode::EXTENDING) ||
-                (!isExtend && ActuatorsController::inputMappings[i].mode == Mode::RETRACTING)) {
+            if ((isExtend && inputMappings[i].mode == Mode::EXTENDING) ||
+                (!isExtend && inputMappings[i].mode == Mode::RETRACTING)) {
                 activate(i);
             }
 
@@ -97,19 +98,20 @@ void controlSingleActuator(int actuatorIndex) {
 
 void activate(int actuatorIndex) {
     Serial.print("Activating actuator. (Pin/Action): ");
-    Serial.print(ActuatorsController::inputMappings[actuatorIndex].actuatorPin);
+    Serial.print(inputMappings[actuatorIndex].actuatorPin);
     Serial.print("/");
-    Serial.println((ActuatorsController::inputMappings[actuatorIndex].mode == Mode::EXTENDING) ? "EXTENDING" : "RETRACTING");
+    Serial.println((inputMappings[actuatorIndex].mode == Mode::EXTENDING) ? "EXTENDING" : "RETRACTING");
 
        // if this actuator is not active.
         if (!relayStates[actuatorIndex].isActive) {
             relayStates[actuatorIndex].isActive = true;
-            digitalWrite(ActuatorsController::inputMappings[actuatorIndex].actuatorPin, LOW);  // Activate the relay
-            const char * thisActuatorName = ActuatorsController::inputMappings[actuatorIndex].actuatorName;
+            digitalWrite(inputMappings[actuatorIndex].actuatorPin, LOW);  // Activate the relay
+            stateChanged = true; // generate a report upon launch.
+            const char * thisActuatorName = inputMappings[actuatorIndex].actuatorName;
             unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
             for (int i = 0; i < MAX_PINS; i++) {
-                if (ActuatorsController::inputMappings[i].actuatorName == thisActuatorName) {
-                    relayStates[i].relayState = ActuatorsController::inputMappings[actuatorIndex].mode;
+                if (inputMappings[i].actuatorName == thisActuatorName) {
+                    relayStates[i].relayState = inputMappings[actuatorIndex].mode;
                     relayStates[i].actuatorPosition = thisActuatorPosition;
                     relayStates[i].startTime = millis();
                 }
@@ -125,9 +127,9 @@ void pauseSingleActuator(int actuatorIndex) {
     if (relayStates[actuatorIndex].isActive) {
 
         Serial.print("Pausing Actuator on pin: ");
-        Serial.print(ActuatorsController::inputMappings[actuatorIndex].actuatorPin);
+        Serial.print(inputMappings[actuatorIndex].actuatorPin);
         // if this is a retracting actuator
-        if (ActuatorsController::inputMappings[actuatorIndex].mode == Mode::RETRACTING)
+        if (inputMappings[actuatorIndex].mode == Mode::RETRACTING)
         {  // when retracting we subtract from the duration.
             if (relayStates[actuatorIndex].actuatorPosition < currentTime - relayStates[actuatorIndex].startTime)
             {
@@ -141,13 +143,14 @@ void pauseSingleActuator(int actuatorIndex) {
         Serial.print(" @: ");
         Serial.println(relayStates[actuatorIndex].actuatorPosition);
 
-        digitalWrite(ActuatorsController::inputMappings[actuatorIndex].actuatorPin, HIGH);  // Deactivate the relay
-        const char* thisActuatorName = ActuatorsController::inputMappings[actuatorIndex].actuatorName;
+        digitalWrite(inputMappings[actuatorIndex].actuatorPin, HIGH);  // Deactivate the relay
+        stateChanged = true;
+        const char* thisActuatorName = inputMappings[actuatorIndex].actuatorName;
         unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
         for (int i = 0; i < MAX_PINS; i++) {
-            if (ActuatorsController::inputMappings[i].actuatorName == thisActuatorName) {
+            if (inputMappings[i].actuatorName == thisActuatorName) {
                 relayStates[i].isActive = false;
-                relayStates[i].relayState = ActuatorsController::Mode::PAUSED;
+                relayStates[i].relayState = Mode::PAUSED;
                 relayStates[i].actuatorPosition = thisActuatorPosition;
             }
         }
@@ -189,6 +192,15 @@ void pauseSingleActuator(int actuatorIndex) {
         return false;
     }
 
+// return if there has been a state change to trigger reporting
+bool getChangedState() {
+    bool thisStateChanged = stateChanged;
+    stateChanged = false;
+    return thisStateChanged;
+}
+
+
+
 void update() {
     unsigned long currentTime = millis();
 
@@ -204,9 +216,9 @@ void update() {
             unsigned long elapsedTime = currentTime - relayStates[i].startTime;
             // The new duration is the previous duration + for extend or - for retract the elapsed time.
             unsigned long newDuration = 0;
-            if (ActuatorsController::inputMappings[i].mode == Mode::EXTENDING) {
+            if (inputMappings[i].mode == Mode::EXTENDING) {
                 newDuration = relayStates[i].actuatorPosition + elapsedTime;
-            } else if (ActuatorsController::inputMappings[i].mode == Mode::RETRACTING) { // retracting
+            } else if (inputMappings[i].mode == Mode::RETRACTING) { // retracting
                 newDuration = (relayStates[i].actuatorPosition < elapsedTime) ? 0UL
                                   : relayStates[i].actuatorPosition - elapsedTime;
             }
@@ -225,9 +237,9 @@ void update() {
     }
 
 private:
-    static const unsigned long MAX_PINS = ActuatorsController::MAX_PINS;
+    static const unsigned long MAX_PINS = MAX_PINS;
     // copy Mode from inputMappings namespace
-    using Mode = ActuatorsController::Mode;
+    using Mode = Mode;
 
     //unsigned long currentMillis = millis();
     // Max duration in milliseconds before duration is capped.
@@ -237,6 +249,7 @@ private:
     bool forcedActive = false; // True when a forced operation is active
     unsigned long forcedStartTime = 0; // Timestamp when the forced mode started
     static const unsigned long FORCED_DURATION = 5000UL; // Forced operation lasts 5000 ms
+    bool stateChanged = false; // Monitor whether anything has changed state for report generation.
 };
 } // inputMappings
 

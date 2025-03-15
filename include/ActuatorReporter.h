@@ -11,7 +11,7 @@ namespace ActuatorsController {
 class ActuatorReporter {
 public:
     // Constructor: stores a reference to the MegaRelayControl which holds relay and state information.
-    ActuatorReporter(inputMappings::MegaRelayControl &relayControl)
+    ActuatorReporter(MegaRelayControl &relayControl)
         : relays(relayControl), lastReportTime(millis()) {}
 
     // Virtual destructor (if you later subclass this reporter)
@@ -49,6 +49,9 @@ public:
     void sendStatusReport() const {
         String reportString = generateReport();
         Serial2.println(reportString);
+        // DEBUG output
+        Serial.print (" Mega Local Output:\n");
+        Serial.println(reportString);
     }
 
     // Call this function periodically (e.g., from loop()).
@@ -63,7 +66,7 @@ public:
 
 private:
     // Reference to the MegaRelayControl instance, from which we retrieve actuator states.
-    inputMappings::MegaRelayControl &relays;
+    MegaRelayControl &relays;
     // Timestamp of the last report sent.
     unsigned long lastReportTime;
     // Reporting interval in milliseconds (adjust as needed).
