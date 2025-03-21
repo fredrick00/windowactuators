@@ -33,4 +33,8 @@ public:
 protected:
     // Holds the dynamic content that will be wrapped in the body.
     String bodyContent;
+    // New overload for buildControlButtons that accepts StatusReportData,
+    // returning control buttons built from live data.
+    String buildControlButtons(const StatusReportData &statusReport);
+
     };

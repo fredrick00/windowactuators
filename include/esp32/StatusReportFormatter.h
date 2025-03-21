@@ -5,7 +5,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include "StatusReportProcessor.h"  // Contains StatusReportData
 #include "inputmapping.h"           // Contains InputMapping and inputMappings
 
 namespace ActuatorsController {

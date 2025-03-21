@@ -58,9 +58,7 @@ namespace ActuatorsController {
     constexpr int TOTAL_ACTUATORS = MAX_PINS;
 
     // Using std::array for fixed-size allocation.
-    std::array<Debounced, MAX_INPUTS_COUNT> debouncedSwitches;
+    extern std::array<Debounced, MAX_INPUTS_COUNT> debouncedSwitches;
 
-    // Create an instance (adjust the pin and interval as needed)
-    Debounced mySwitch(2, 50); // Pin 2 with 50ms debounce time
 
 } // namespace ActuatorsController

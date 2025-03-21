@@ -3,9 +3,7 @@
 // File: StatusController.h
 // Description: Provides interface for the status controller.
 
-#ifndef STATUS_CONTROLLER_H
-#define STATUS_CONTROLLER_H
-
+#pragma once
 #include "StatusMonitor.h"
 #include "WebPageBuilder.h"
 
@@ -19,5 +17,3 @@ private:
     StatusMonitor &statusMonitor;
     WebPageBuilder &webPageBuilder;
 };
-
-#endif  // STATUS_CONTROLLER_H

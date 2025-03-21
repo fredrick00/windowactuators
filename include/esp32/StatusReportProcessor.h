@@ -10,6 +10,7 @@
 
 namespace ActuatorsController {
 
+  String accumulateSerialInput(Stream &stream);
   class StatusReportProcessor {
   public:
     // Constructor: takes a reference to an input Stream (e.g., Serial2)
@@ -19,7 +20,11 @@ namespace ActuatorsController {
     bool process(Stream &dataStream) {
       if (inStream.available()) {
         // Read until newline assuming the JSON string is terminated by '\n'
-        String jsonReport = inStream.readStringUntil('\n');
+        String jsonReport = accumulateSerialInput(inStream);
+        // Check that the complete JSON was received before parsing
+        if (jsonReport.length() == 0) {
+          return false;
+        }
         return parseReport(jsonReport, report);
       }
       return false;
@@ -88,6 +93,44 @@ namespace ActuatorsController {
       return true;
     }
 
-  };
+  inline String accumulateSerialInput(Stream &stream) {
+    // Static buffer to accumulate data and a static counter to track braces.
+    static String buffer = "";
+    static int braceCount = 0;
+    bool started = false;
 
+    while (stream.available()) {
+        char c = stream.read();
+
+        // Detect the start of the JSON object.
+        if (!started && c == '{') {
+            started = true;
+            braceCount = 0;  // Reset the brace counter at the start.
+        }
+
+        // If we haven't started (i.e. haven't encountered '{'), then continue.
+        if (!started) {
+            continue;
+        }
+
+        buffer += c;
+
+        if (c == '{') {
+            braceCount++;
+        } else if (c == '}') {
+            braceCount--;
+            // If the brace counter reaches zero, we assume the JSON object is complete.
+            if (braceCount == 0) {
+                String completeMessage = buffer;
+                buffer = "";
+                started = false;
+                return completeMessage;
+            }
+        }
+    }
+
+    // If no complete JSON object is assembled, return empty string.
+    return "";
+  }
+  };
 } // namespace ActuatorsController

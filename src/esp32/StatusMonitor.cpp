@@ -22,6 +22,7 @@ StatusMonitor::StatusMonitor(StatusReportProcessor &processor)
 
 bool StatusMonitor::updateStatus() {
   if (Serial2.available() > 0) {
+    Serial.println("Serial2 data available");
     // Let the StatusReportProcessor read from Serial2, parse the JSON,
     // and update its internal StatusReportData structure.
     return statusProcessor.process(Serial2);
@@ -42,12 +43,6 @@ String StatusMonitor::getFormattedStatus() const {
 }
 
 // getStatusReport: returns the current status report in StatusReportData format.
-StatusReportData StatusMonitor::getStatusReport() const {
-  return statusProcessor.getReport();
-}
-
-
-
 const StatusReportData &StatusMonitor::getStatusReport() const {
   return statusProcessor.getReport();
 }

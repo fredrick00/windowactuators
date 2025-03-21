@@ -26,6 +26,7 @@
   static unsigned long lastBluetoothCheck = 0;
   const unsigned long bluetoothCheckInterval = 1000; // Check for Bluetooth connection every second
 
+
   //BluetoothSerial SerialBT;
 
 #define LED_BUILTIN 2 // Define LED_BUILTIN if it's not defined
@@ -234,6 +235,7 @@ void loop() {
         const StatusReportData &statusData = statusMonitor.getStatusReport();
         // Build the HTML page using the updated status data.
         String pageHTML = webPageBuilder.buildPage(statusData);
+        if (pageHTML.length() > 0) { Serial.println(pageHTML);}
         // Set or update the web server’s dynamic content.
         webServerManager.updatePageContent(pageHTML);
       }

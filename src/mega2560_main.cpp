@@ -31,6 +31,8 @@ MegaActuatorController actuatorController(relays, leds);
 MegaInputManager inputManager;  // Create an instance of MegaInputManager
 ActuatorReporter statusReporter = ActuatorReporter(relays);
 MegaStateWatcher stateWatcher(relays, statusReporter);
+// Create an instance (adjust the pin and interval as needed)
+Debounced mySwitch(2, 50); // Pin 2 with 50ms debounce time
 
 // Version of this software
 const String KitchenScriptVersion = "KitchenWindows V1.21";

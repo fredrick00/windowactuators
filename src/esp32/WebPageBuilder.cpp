@@ -33,6 +33,10 @@ WebPageBuilder::WebPageBuilder(const String &defaultTitle)
     void WebPageBuilder::addBodyContent(const String &additionalContent) {
       dynamicBodyContent += additionalContent;
     }
+
+   	String WebPageBuilder::getMetaTags() {
+       	return "<meta charset=\"UTF-8\">\n";
+   	}
     // Build and return the complete HTML page.
     String WebPageBuilder::buildPage(const StatusReportData &statusData) {
     String page;
@@ -60,7 +64,7 @@ String WebPageBuilder::getNavigation() {
 }
 // Build the dynamic body content section.
 String WebPageBuilder::getBody(const StatusReportData &statusData) {
-  String body = bodyBuilder.buildBody();
+  String body = bodyBuilder.buildBody(statusData);
   return body;
 }
 // Build the footer section.

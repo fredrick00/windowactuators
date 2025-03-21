@@ -12,6 +12,6 @@ void StatusController::update() {
     // Check for status update
     if (statusMonitor.updateStatus()) {
         // Pass the updated status to the web page builder
-        webPageBuilder.buildPage(getStatusReport());
+        webPageBuilder.buildPage(statusMonitor.getStatusReport());
     }
 }
