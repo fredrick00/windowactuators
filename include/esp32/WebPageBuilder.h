@@ -4,10 +4,17 @@
 /* WebPageBuilder.h */
 #pragma once
 #include <Arduino.h>
+#include "StatusReportProcessor.h"
+#include "HeaderBuilder.h"
+#include "BodyBuilder.h"
+#include "FooterBuilder.h"
+#include "NavigationBuilder.h"
+
+using namespace ActuatorsController;
 
 class WebPageBuilder {
   public:
-    WebPageBuilder();
+    WebPageBuilder(const String &defaultTitle = "Windows Controller Interface");
     virtual ~WebPageBuilder();
     // Setters for page properties.
     void setPageTitle(const String &title);
@@ -21,7 +28,7 @@ class WebPageBuilder {
     void addBodyContent(const String &additionalContent);
     // Build and return the complete HTML page.
     // This method calls individual functions to generate parts of the page.
-    virtual String buildPage();
+    virtual String buildPage(const StatusReportData &statusData);
 
 protected:
     // Returns the section including the title and links
@@ -29,7 +36,7 @@ protected:
     // Returns the navigation bar section
     virtual String getNavigation();
     // Returns the complete dynamic content/body of the page
-    virtual String getBody();
+    virtual String getBody(const StatusReportData &statusData);
     // Returns the footer part
     virtual String getFooter();
     // Utility to generate common meta tags (optional)
@@ -40,5 +47,11 @@ protected:
     String jsLink;
     String navigationContent;
     String dynamicBodyContent;
+
+    // Presistent web page building instances
+    HeaderBuilder headerBuilder;
+    BodyBuilder bodyBuilder;
+    FooterBuilder footerBuilder;
+    NavigationBuilder navigationBuilder;
 
 };

@@ -2,7 +2,7 @@
 // Created by fredr on 3/14/2025.
 //
 /* FooterBuilder.cpp */
-#include "FooterBuilder.h"
+#include "esp32/FooterBuilder.h"
 
     ////////////////////////////////////////////////////////////
     // Constructor & Destructor
@@ -22,9 +22,15 @@ void FooterBuilder::setFooterText(const String &text) {
 }
 String FooterBuilder::buildFooter() {
     // Build the final HTML for the footer.
-       String footerHTML;
-       footerHTML += " \n";
-       footerHTML += footerContent + "\n";
-       footerHTML += " \n";
+       String footerHTML = "<footer>\n";
+       if (footerContent != "") {
+         footerHTML += "<p>\n";
+         footerHTML += footerContent + "\n</p>\n";
+       }
+    	footerHTML += "</footer>\n";
+
+    	// Close body and html tags
+    	footerHTML += "</body>\n";
+    	footerHTML += "</html>\n";
        return footerHTML;
 }

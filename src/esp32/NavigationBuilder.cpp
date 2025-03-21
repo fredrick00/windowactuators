@@ -2,8 +2,7 @@
 // Created by fredr on 3/14/2025.
 //
 /* NavigationBuilder.cpp */
-#pragma once
-#include "NavigationBuilder.h"
+#include "esp32/NavigationBuilder.h"
 
 //////////////////////////////////////////////////////////// // Constructor & Destructor ////////////////////////////////////////////////////////////
 NavigationBuilder::NavigationBuilder() : itemCount(0) {}// Initialize the navigation items count to 0.
@@ -20,10 +19,10 @@ void NavigationBuilder::addNavItem(const String &displayText, const String &url)
 
 void NavigationBuilder::clearNavItems() { itemCount = 0; } // Reset the count to 0 to remove all items.
 String NavigationBuilder::buildNavigation() {
-  String navigation;
-  navigation += " \n";
-  navigation += buildNavList(); // Generate the list of navigation items.
-  navigation += " \n";
+  String navigation = buildNavList();
+  if (navigation.length() == 0) {
+    navigation = "\n<nav>\n" + navigation + " \n</nav>\n";
+  }
   return navigation;
 }
 

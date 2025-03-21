@@ -3,6 +3,10 @@
 //
 #pragma once
 #include <Arduino.h>
+#include "StatusReportProcessor.h"
+
+using namespace ActuatorsController;
+
 class BodyBuilder {
 public:
     // Constructor: initializes an empty body.
@@ -23,6 +27,8 @@ public:
     void addWindowControlButton(const String &windowId, const String &action, const String &label, const String &colorStyle);
     // Builds and returns the complete HTML for the body section.
     virtual String buildBody();
+    // Overloaded buildBody accepts StatusReportData.
+    virtual String buildBody(const StatusReportData &statusReport);
 
 protected:
     // Holds the dynamic content that will be wrapped in the body.

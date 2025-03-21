@@ -1,7 +1,10 @@
 //
 // Created by fredr on 3/14/2025.
 //
-#include "BodyBuilder.h"
+#include "esp32/BodyBuilder.h"
+#include "esp32/StatusReportProcessor.h"
+using namespace ActuatorsController;
+
     //
     // Constructor: Initializes an empty body.
     BodyBuilder::BodyBuilder() { bodyContent = ""; }
@@ -24,7 +27,8 @@
     // colorStyle: a CSS style string or a class name to color-code the button.
     void BodyBuilder::addWindowControlButton(const String &windowId, const String &action, const String &label, const String &colorStyle) {
     // Build a button element with an onClick event that calls a JavaScript function.
-    String button = "<button id="" + windowId + "_" + action + "" ";
+    //String button = "<button id=" + windowId + "_" + action + "";
+    String button = "<button id=\"" + windowId + "_" + action + " ";
     // If colorStyle represents a CSS class, use class attribute. Adjust as needed.
     button += "class=\"" + colorStyle + "\" ";
     // The onClick calls a JavaScript function (handleWindowAction) with the window id and action.
@@ -39,5 +43,19 @@
 //
     // Builds and returns the complete HTML for the body section.
      String BodyBuilder::buildBody() {
-       String html = "\n"; html += bodyContent; html += "\n</body>\n"; return html;
+       String html = "\n<body>\n";
+       html += bodyContent;
+       html += "\n</body>\n";
+       return html;
      }
+
+ // buildBody() overload for processing StatusReportData.
+String BodyBuilder::buildBody(const StatusReportData &statusReport) {
+  String html = "\n<body>\n";
+  //
+  html += "<div class=\"status\">Status: " + statusReport.statusMessage + "</div>\n";
+  // Append any additional content accumulated.
+  html += bodyContent;
+  html += "\n</body>\n";
+  return html;
+}
