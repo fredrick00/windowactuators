@@ -1,16 +1,16 @@
 #ifdef __AVR_ATmega2560__
 #include <Arduino.h>
-#include "ActuatorReporter.h"
-#include "Debounced.h"
-#include "megatypes.h"
-#include "inputmapping.h"
-#include "MegaRelayControl.h"
-#include "MegaButton.h"
-#include "MegaLEDControl.h"
-#include "MegaCommand.h"
-#include "MegaActuatorController.h"
-#include "MegaInputManager.h"
-#include "MegaStateWatcher.h"
+#include "mega/ActuatorReporter.h"
+#include "mega/Debounced.h"
+#include "mega/megatypes.h"
+#include "mega/inputmapping.h"
+#include "mega/MegaRelayControl.h"
+#include "mega/MegaButton.h"
+#include "mega/MegaLEDControl.h"
+#include "mega/MegaCommand.h"
+#include "mega/MegaActuatorController.h"
+#include "mega/MegaInputManager.h"
+#include "mega/MegaStateWatcher.h"
 //#include "MegaSwitch.h"
 
 using namespace ActuatorsController;
@@ -101,7 +101,7 @@ void loop() {
     }
 
     // Check each switch and control the corresponding actuator
-for (int i = 0; i < MAX_PINS; ++i) {
+for (int i = 0; i < MAX_RELAY_PINS; ++i) {
     ButtonState currentState = inputManager.getSwitchState(i);  // Get the current state of the switch
     if (inputManager.getSwitchState(i) == ButtonState::SINGLE_PRESSED) {
         // Check if this is a double-flick indicating a FORCE Extend/Retract command.

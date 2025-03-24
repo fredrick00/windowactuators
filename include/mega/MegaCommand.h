@@ -34,7 +34,7 @@ private:
       } else {
         actuator = actuatorStr.toInt() - 1;
         if (action == "RETRACT") {
-          actuator = actuator + (MAX_PINS / 2);
+          actuator = actuator + (MAX_RELAY_PINS / 2);
         }
       }
     }

@@ -7,6 +7,8 @@
 #include "esp32/StatusReportFormatter.h"
 #include "esp32/NavigationBuilder.h"
 #include "esp32/WebPageBuilder.h"
+// include inputmapping from Mega side of the project as we are generating web equivalent for switches and buttons.
+#include "mega/inputmapping.h"
 
 using namespace ActuatorsController;
 
@@ -48,67 +50,6 @@ using namespace ActuatorsController;
     bodyContent += button;
 }
 
-/**
-// Helper function to build the control buttons.
-// Builds and returns the complete HTML page (without status information).
-String BodyBuilder::buildControlButtons() {
-    String buttons;
-
-    // Iterate through each mapping entry.
-    for (size_t i = 0; i < MAX_INPUTS_COUNT; i++) {
-        // Use the actuatorName of the first mapping as the group name.
-        String currentName = inputMappings[i].actuatorName;
-        // Check if we've already processed this actuator.
-        bool alreadyProcessed = false;
-        for (size_t prev = 0; prev < i; prev++) {
-            if (String(inputMappings[prev].actuatorName) == currentName) {
-                alreadyProcessed = true;
-                break;
-            }
-        }
-        if (alreadyProcessed) {
-            continue;
-        }
-
-        // Locate the pair of mappings (EXTENDING and RETRACTING) for this actuator.
-        const InputMapping* extendMapping = nullptr;
-        const InputMapping* retractMapping = nullptr;
-        for (size_t j = 0; j < MAX_INPUTS_COUNT; j++) {
-            if (String(inputMappings[j].actuatorName) == currentName) {
-                if (inputMappings[j].mode == Mode::EXTENDING) {
-                    extendMapping = &inputMappings[j];
-                } else if (inputMappings[j].mode == Mode::RETRACTING) {
-                    retractMapping = &inputMappings[j];
-                }
-            }
-        }
-
-        // Only build the button group if both mappings are found.
-        if (extendMapping && retractMapping) {
-            buttons += "<div class=\"control-group\">\n";
-            // Actuator title header.
-            buttons += "<h3>" + currentName + "</h3>\n";
-
-            // Generate the 'Extend' button.
-            buttons += "<button id=\"" + currentName + "_extend\" ";
-            buttons += "class=\"green\" ";
-            buttons += "onclick=\"handleWindowAction('" + currentName + "', 'extend')\">";
-            buttons += "Extend";
-            buttons += "</button>\n";
-
-            // Generate the 'Retract' button.
-            buttons += "<button id=\"" + currentName + "_retract\" ";
-            buttons += "class=\"red\" ";
-            buttons += "onclick=\"handleWindowAction('" + currentName + "', 'retract')\">";
-            buttons += "Retract";
-            buttons += "</button>\n";
-
-            buttons += "</div>\n";
-        }
-    }
-    return buttons;
-}
- *** End obsolete buildControlButtons function **/
 
  // buildBody() overload for processing StatusReportData.
 String BodyBuilder::buildBody(const StatusReportData &statusReport) {
@@ -211,7 +152,7 @@ static String formatAllActuatorsControl(const StatusReportData &report) {
 String BodyBuilder::buildControlButtons(const StatusReportData &statusReport) {
     String buttons;
     // Iterate through each actuator in the live status report.
-    for (uint8_t i = 0; i < statusReport.actuatorCount; ++i) {
+    for (uint8_t i = 0; i < TOTAL_ACTUATORS; ++i) {
         buttons += formatActuatorControl(statusReport.actuators[i]);
     }
     // Add the control group for "All Actuators"

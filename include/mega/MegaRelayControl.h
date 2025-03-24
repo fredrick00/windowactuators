@@ -5,21 +5,26 @@
 
 #include <Arduino.h>
 #include "inputmapping.h"
+#include "MegaRelayControl.h"
 
-namespace ActuatorsController {
+using namespace ActuatorsController;
 
 class MegaRelayControl {
 public:
     Mode stateReport;
 
     struct RelayState {
+        bool stateHasChanged;
+        String actuatorName;
         bool isActive;
         Mode relayState;
         unsigned long startTime;
         unsigned long actuatorPosition;
         unsigned long maxDuration;
 
-    } relayStates[MAX_PINS]; // Static array for relay states
+    };
+    // Static array for relay states
+    RelayState relayStates[MAX_RELAY_PINS];
 
     MegaRelayControl
   () {
@@ -47,7 +52,7 @@ void forceOperation(bool isExtend) {
     Serial.println(isExtend ? "EXTENDING" : "RETRACTING");
     forcedActive = true;
     forcedStartTime = millis();
-    for (int i = 0; i < MAX_PINS; i++) {
+    for (int i = 0; i < MAX_RELAY_PINS; i++) {
         if (!relayStates[i].isActive && (inputMappings[i].mode == Mode::EXTENDING) == isExtend) {
             forceOperator(i);
         }
@@ -68,11 +73,13 @@ void controlSingleActuator(int actuatorIndex) {
 
 
     void initializeRelays() {
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             pinMode(inputMappings[i].actuatorPin, OUTPUT);
             digitalWrite(inputMappings[i].actuatorPin, HIGH); // Assuming HIGH means relay off
-            stateChanged = true;
+            stateChanged = true; // start by generating a report
+            relayStates[i].stateHasChanged = true; // start with a generated report
             relayStates[i].isActive = false;
+            relayStates[i].actuatorName = inputMappings[i].actuatorName;
             relayStates[i].startTime = 0;
             relayStates[i].actuatorPosition = 0;
             relayStates[i].maxDuration = maxDuration;
@@ -85,7 +92,7 @@ void controlSingleActuator(int actuatorIndex) {
       if (anyActive() && !forcedActive) {
         pauseAll ();
       } else {
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             // activate relays for the action indicated by isExtend
             if ((isExtend && inputMappings[i].mode == Mode::EXTENDING) ||
                 (!isExtend && inputMappings[i].mode == Mode::RETRACTING)) {
@@ -107,9 +114,11 @@ void activate(int actuatorIndex) {
             relayStates[actuatorIndex].isActive = true;
             digitalWrite(inputMappings[actuatorIndex].actuatorPin, LOW);  // Activate the relay
             stateChanged = true; // generate a report upon launch.
+            // call the MegaRelayControl setRelayChangedState function to set stateHasChanged to true.
+            relayStates[actuatorIndex].stateHasChanged = true;
             const char * thisActuatorName = inputMappings[actuatorIndex].actuatorName;
             unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
-            for (int i = 0; i < MAX_PINS; i++) {
+            for (int i = 0; i < MAX_RELAY_PINS; i++) {
                 if (inputMappings[i].actuatorName == thisActuatorName) {
                     relayStates[i].relayState = inputMappings[actuatorIndex].mode;
                     relayStates[i].actuatorPosition = thisActuatorPosition;
@@ -144,10 +153,12 @@ void pauseSingleActuator(int actuatorIndex) {
         Serial.println(relayStates[actuatorIndex].actuatorPosition);
 
         digitalWrite(inputMappings[actuatorIndex].actuatorPin, HIGH);  // Deactivate the relay
+        // save this relays changed state, as well as flagging that a state has changed in any relay.
+        relayStates[actuatorIndex].stateHasChanged = true;
         stateChanged = true;
         const char* thisActuatorName = inputMappings[actuatorIndex].actuatorName;
         unsigned long thisActuatorPosition = relayStates[actuatorIndex].actuatorPosition;
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             if (inputMappings[i].actuatorName == thisActuatorName) {
                 relayStates[i].isActive = false;
                 relayStates[i].relayState = Mode::PAUSED;
@@ -160,13 +171,13 @@ void pauseSingleActuator(int actuatorIndex) {
 
     void pauseAll() {
         Serial.println ("Pausing all actuators.");
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             pauseSingleActuator(i);
         }
     }
 
     bool anyActive() const {
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             if (relayStates[i].isActive) {
                 return true;
             }
@@ -175,7 +186,7 @@ void pauseSingleActuator(int actuatorIndex) {
     }
 
     bool areAnyExtending() const {
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             if (relayStates[i].relayState == Mode::EXTENDING) {
                 return true;
             }
@@ -184,7 +195,7 @@ void pauseSingleActuator(int actuatorIndex) {
     }
 
     bool areAnyRetracting() const {
-        for (int i = MAX_PINS / 2; i < MAX_PINS; i++) {
+        for (int i = MAX_RELAY_PINS / 2; i < MAX_RELAY_PINS; i++) {
             if (relayStates[i].relayState == Mode::RETRACTING) {
                 return true;
             }
@@ -199,7 +210,13 @@ bool getChangedState() {
     return thisStateChanged;
 }
 
+bool hasRelayChangedState(int relayIndex) const {
+  return relayStates[relayIndex].stateHasChanged;
+}
 
+void setRelayChangedState(int relayIndex, bool stateHasChanged) {
+    relayStates[relayIndex].stateHasChanged = stateHasChanged;
+}
 
 void update() {
     unsigned long currentTime = millis();
@@ -210,7 +227,7 @@ void update() {
         pauseAll();
     }
 
-    for (int i = 0; i < MAX_PINS; i++) {
+    for (int i = 0; i < MAX_RELAY_PINS; i++) {
         if (relayStates[i].isActive) {
             // Calculate elapsed time
             unsigned long elapsedTime = currentTime - relayStates[i].startTime;
@@ -237,9 +254,6 @@ void update() {
     }
 
 private:
-    static const unsigned long MAX_PINS = MAX_PINS;
-    // copy Mode from inputMappings namespace
-    using Mode = Mode;
 
     //unsigned long currentMillis = millis();
     // Max duration in milliseconds before duration is capped.
@@ -251,5 +265,4 @@ private:
     static const unsigned long FORCED_DURATION = 5000UL; // Forced operation lasts 5000 ms
     bool stateChanged = false; // Monitor whether anything has changed state for report generation.
 };
-} // inputMappings
 

@@ -235,7 +235,22 @@ void loop() {
         const StatusReportData &statusData = statusMonitor.getStatusReport();
         // Build the HTML page using the updated status data.
         String pageHTML = webPageBuilder.buildPage(statusData);
-        if (pageHTML.length() > 0) { Serial.println(pageHTML);}
+
+/** begin debug **/
+        if (&statusData != nullptr) {
+          String out = "";
+          out += String(statusData.timestamp) + ",";
+          for (uint8_t i = 0; i < statusData.actuatorCount; i++) {
+            // Assume each actuator provides a way to convert to a string.
+            out += String(statusData.actuators[i].index) +  ": " + String(statusData.actuators[i].name);
+            if (i < statusData.actuatorCount - 1) { out += ";"; }
+          }
+          out += "," + statusData.statusMessage;
+          Serial.println(out);
+        }
+
+/** end debug **/
+        // if (pageHTML.length() > 0) { Serial.println(pageHTML);}
         // Set or update the web server’s dynamic content.
         webServerManager.updatePageContent(pageHTML);
       }

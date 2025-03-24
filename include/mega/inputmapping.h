@@ -53,9 +53,10 @@ namespace ActuatorsController {
 
     constexpr size_t EXTEND_BUTTON_INDEX = MAX_INPUTS_COUNT - 2;
     constexpr size_t RETRACT_BUTTON_INDEX = MAX_INPUTS_COUNT - 1;
-    // Define MAX_PINS as (count - 2 to exclude extend/retract all).
-    constexpr int MAX_PINS = MAX_INPUTS_COUNT - 2;
-    constexpr int TOTAL_ACTUATORS = MAX_PINS;
+    // Define MAX_RELAY_PINS as (count - 2 to exclude extend/retract all).
+    constexpr int MAX_RELAY_PINS = MAX_INPUTS_COUNT - 2; // MAX_RELAY_PINS is the number of
+    constexpr int MAX_SWITCH_PINS = MAX_RELAY_PINS; // 2 pins for each switch and each relay.
+    constexpr int TOTAL_ACTUATORS = MAX_RELAY_PINS / 2; // each actuator has two pins
 
     // Using std::array for fixed-size allocation.
     extern std::array<Debounced, MAX_INPUTS_COUNT> debouncedSwitches;

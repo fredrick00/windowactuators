@@ -15,10 +15,10 @@ class MegaInputManager {
 
 
 private:
-    static const int MAX_PINS = ActuatorsController::MAX_PINS;
+    static const int MAX_RELAY_PINS = ActuatorsController::MAX_RELAY_PINS;
     // Hardware buttons for overall extend/retract actions.
-    unsigned long thisSwitchActivationTime[MAX_PINS];
-    unsigned long previousSwitchActivationTime[MAX_PINS];
+    unsigned long thisSwitchActivationTime[MAX_RELAY_PINS];
+    unsigned long previousSwitchActivationTime[MAX_RELAY_PINS];
 
 
 
@@ -27,8 +27,8 @@ private:
     // Use the same enum for button and switch events.
     MegaButton extendButton;
     MegaButton retractButton;
-    MegaSwitch switches[MAX_PINS]; // Use the same type as the events produced by buttons.
-    ButtonState switchStates[MAX_PINS];
+    MegaSwitch switches[MAX_RELAY_PINS]; // Use the same type as the events produced by buttons.
+    ButtonState switchStates[MAX_RELAY_PINS];
     // State variables for the extend and retract buttons.
     ButtonState extendState;
     ButtonState retractState;
@@ -41,7 +41,7 @@ private:
       retractState(ButtonState::NONE)
     {
         // Initialize each physical switch with its corresponding pin.
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             switches[i] = MegaSwitch(ActuatorsController::inputMappings[i].inputPin);
             switchStates[i] = ButtonState::NONE;
 
@@ -59,7 +59,7 @@ private:
         extendState = extendButton.getButtonState();
         retractState = retractButton.getButtonState();
         // Update each switch.
-        for (int i = 0; i < MAX_PINS; i++) {
+        for (int i = 0; i < MAX_RELAY_PINS; i++) {
             if (switches[i].hasStateChanged()) {
                 // We treat a changed state that is pressed (LOW on Arduino when using INPUT_PULLUP) // as a SINGLE_PRESSED event.
                 switchStates[i] = switches[i].getState() ? ButtonState::SINGLE_PRESSED : ButtonState::NONE;
@@ -76,7 +76,7 @@ private:
         return retractState;
     }
     ButtonState getSwitchState(int index) const {
-        return (index >= 0 && index < MAX_PINS) ? switchStates[index] : ButtonState::NONE;
+        return (index >= 0 && index < MAX_RELAY_PINS) ? switchStates[index] : ButtonState::NONE;
     }
     // Identify whether this is a double-flick of the switch
     ButtonState isSwitchDoubleFlick(int index) {

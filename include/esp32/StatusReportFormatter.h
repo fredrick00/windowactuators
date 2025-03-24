@@ -5,7 +5,8 @@
 #pragma once
 
 #include <Arduino.h>
-#include "inputmapping.h"           // Contains InputMapping and inputMappings
+// we must include this from the mega side of the project as we are building web equivalents of the buttons.
+#include "mega/inputmapping.h"
 
 namespace ActuatorsController {
 
@@ -13,10 +14,13 @@ namespace ActuatorsController {
 // Structure to hold individual actuator data.
     struct ActuatorData {
       int index;
+      String name;
       bool active;
       String mode;
       int position;
       int maxDuration;
+      unsigned long timestamp;
+      bool forceMode;
     };
 
     // Structure to hold the overall report data; note we use a fixed‐size array.
