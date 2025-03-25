@@ -25,7 +25,7 @@ public:
         // entries in the future.
         String report = "{\"actuators\": [ {";
         report += "\"actuatorCount\": 1"; // it's always 1 actuator for now
-        report += "\"timestamp\": " + String(millis());
+        report += ", \"timestamp\": " + String(millis());
         report += ", \"forceMode\": " + String(relays.isForceMode() ? "true" : "false"); // Report forced mode
         // reset stateHasChanged now that reporting has been called
         const auto &state = relays.relayStates[actuatorIndex];
