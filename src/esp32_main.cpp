@@ -10,6 +10,7 @@
 #include <ArduinoJson.h>
 #include "espconfig.h"
 #include <ArduinoOTA.h>
+#include "esp32/esp32Config.h"
 #include "esp32/StatusReportProcessor.h"
 #include "esp32/WebPageBuilder.h"
 #include "esp32/StatusMonitor.h"
@@ -214,6 +215,8 @@
     /** Make it clear the esp32 was just started. **/
     Serial.print ("\n\n/**\n/**  ");
     Serial.println (ESP32ScriptVersion);
+    Serial.print ("/**  Debug Level: ");
+    Serial.println (DEBUG_LEVEL);
     Serial.println ("/**\n/**  ESP32 Started\n/**\n");
     /** Send a communication to Mega board so it knows we just started **/
     Serial2.println ("ESP32 Booted and Connected.");
